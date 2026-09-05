@@ -430,7 +430,7 @@ function Write-NewConfig {
         '  zapee:',
         '    type: git',
         '    uri: git@github.com:Zaptronics/zap-ee.git',
-        '    version: v0.4.0',
+        '    version: v0.4.1',
         '    override_var: ZAPEE_SOURCE',
         '    zephyr_module: true',
         '    components:',
@@ -481,6 +481,55 @@ function Invoke-Native {
     }
 }
 
+function Invoke-NativeCapture {
+    param([string]$Program, [string[]]$ArgumentList)
+    $output = @(& $Program @ArgumentList 2>&1)
+    $exitCode = $LASTEXITCODE
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = @($output | ForEach-Object { [string]$_ })
+    }
+}
+
+function Assert-GitCheckoutClean {
+    param([string]$Git, [string]$Name, [string]$Path)
+    $result = Invoke-NativeCapture -Program $Git -ArgumentList @('-C', $Path, 'status', '--porcelain', '--untracked-files=normal')
+    if ($result.ExitCode -ne 0) {
+        throw "Unable to inspect dependency '$Name' at '$Path'."
+    }
+    if ($result.Output.Count -gt 0) {
+        $preview = @($result.Output | Select-Object -First 8) -join "`n  "
+        throw "Dependency '$Name' has local changes in '$Path'. zap will not overwrite them.`n  $preview`nCommit/stash them, or use a separate local override via its override_var."
+    }
+}
+
+function Test-GitRevision {
+    param([string]$Git, [string]$Path, [string]$Revision)
+    $verify = Invoke-NativeCapture -Program $Git -ArgumentList @('-C', $Path, 'rev-parse', '--verify', '--quiet', "${Revision}^{commit}")
+    return $verify.ExitCode -eq 0
+}
+
+function Resolve-GitRevision {
+    param([string]$Git, [string]$Path, [string]$Revision)
+    if (Test-GitRevision -Git $Git -Path $Path -Revision $Revision) {
+        return $Revision
+    }
+    $remoteRevision = "origin/$Revision"
+    if (Test-GitRevision -Git $Git -Path $Path -Revision $remoteRevision) {
+        return $remoteRevision
+    }
+    return ''
+}
+
+function Get-GitValue {
+    param([string]$Git, [string]$Path, [string[]]$ArgumentList)
+    $result = Invoke-NativeCapture -Program $Git -ArgumentList (@('-C', $Path) + $ArgumentList)
+    if ($result.ExitCode -ne 0 -or $result.Output.Count -eq 0) {
+        return ''
+    }
+    return [string]$result.Output[0]
+}
+
 function Sync-Dependencies {
     param($Config)
     foreach ($name in $Config.dependencies.Keys) {
@@ -508,8 +557,13 @@ function Sync-Dependencies {
                     Invoke-Native -Program $git.Source -ArgumentList @('clone', [string]$dep.uri, $path)
                 }
                 Write-Host "Synchronising $name @ $($dep.version)"
+                Assert-GitCheckoutClean -Git $git.Source -Name $name -Path $path
                 Invoke-Native -Program $git.Source -ArgumentList @('-C', $path, 'fetch', '--tags', '--prune', 'origin')
-                Invoke-Native -Program $git.Source -ArgumentList @('-C', $path, 'checkout', '--detach', [string]$dep.version)
+                $resolvedRevision = Resolve-GitRevision -Git $git.Source -Path $path -Revision ([string]$dep.version)
+                if (-not $resolvedRevision) {
+                    throw "Dependency '$name' requested Git ref '$($dep.version)', but that ref was not found after fetching '$($dep.uri)'. Check the version in zap.yml and make sure the tag/branch has been pushed."
+                }
+                Invoke-Native -Program $git.Source -ArgumentList @('-C', $path, 'checkout', '--detach', $resolvedRevision)
             }
             'path' {
                 if (-not (Test-Path -LiteralPath $path)) { throw "Local dependency '$name' was not found at '$path'." }
@@ -904,6 +958,99 @@ Unused interfaces may be removed from the application-owned skeleton. The genera
     Write-Host "Created adapter skeleton in $outDir"
 }
 
+function Show-Status {
+    param($Config)
+    Write-Host "Environment : $(Get-ProjectValue $Config 'environment' 'generic')"
+    Write-Host "Target      : $(Get-ProjectValue $Config 'target' '')"
+    Write-Host "Dependencies:"
+
+    foreach ($name in $Config.dependencies.Keys) {
+        $dep = $Config.dependencies[$name]
+        $type = ([string]$dep.type).ToLowerInvariant()
+        $path = Resolve-DependencyPath $Config $name $dep
+        $overrideVar = [string]$dep.override_var
+        $override = if ($overrideVar) { [Environment]::GetEnvironmentVariable($overrideVar) } else { '' }
+
+        Write-Host "  $name"
+        Write-Host "    configured : $type $($dep.uri) $($dep.version)"
+        Write-Host "    source     : $path"
+        if ($override) {
+            Write-Host "    override   : $overrideVar=$override"
+        }
+
+        if ($type -eq 'git' -and (Test-Path -LiteralPath (Join-Path $path '.git'))) {
+            $git = Get-Command git -ErrorAction SilentlyContinue
+            if (-not $git) {
+                Write-Host '    checkout   : git not found'
+                continue
+            }
+            $origin = Get-GitValue -Git $git.Source -Path $path -ArgumentList @('remote', 'get-url', 'origin')
+            $head = Get-GitValue -Git $git.Source -Path $path -ArgumentList @('rev-parse', '--short=12', 'HEAD')
+            $dirty = Invoke-NativeCapture -Program $git.Source -ArgumentList @('-C', $path, 'status', '--porcelain', '--untracked-files=normal')
+            $state = if ($dirty.ExitCode -ne 0) { 'unknown' } elseif ($dirty.Output.Count -gt 0) { 'DIRTY' } else { 'clean' }
+            $match = 'unknown'
+            $revision = [string]$dep.version
+            $resolvedRevision = Resolve-GitRevision -Git $git.Source -Path $path -Revision $revision
+            if ($resolvedRevision) {
+                $wanted = Get-GitValue -Git $git.Source -Path $path -ArgumentList @('rev-parse', '--short=12', "${resolvedRevision}^{commit}")
+                $match = if ($wanted -and $head -eq $wanted) { 'yes' } else { 'no' }
+            } else {
+                $match = 'ref not fetched/found'
+            }
+            Write-Host "    origin     : $origin"
+            Write-Host "    HEAD       : $head"
+            Write-Host "    worktree   : $state"
+            Write-Host "    version ok : $match"
+        } elseif ($type -eq 'git') {
+            Write-Host '    checkout   : not fetched'
+        } elseif (Test-Path -LiteralPath $path) {
+            Write-Host '    checkout   : present'
+        } else {
+            Write-Host '    checkout   : missing'
+        }
+    }
+}
+
+function Show-AvailableVersions {
+    param($Config, [string]$Name)
+    if (-not $Config.dependencies.Contains($Name)) {
+        throw "Unknown dependency '$Name'."
+    }
+    $dep = $Config.dependencies[$Name]
+    if (([string]$dep.type).ToLowerInvariant() -ne 'git') {
+        throw "Dependency '$Name' is not a Git dependency."
+    }
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { throw 'git is required to query dependency versions.' }
+
+    Write-Host "$Name currently uses $($dep.version)"
+    Write-Host "Querying $($dep.uri) ..."
+    $result = Invoke-NativeCapture -Program $git.Source -ArgumentList @('ls-remote', '--tags', '--refs', [string]$dep.uri)
+    if ($result.ExitCode -ne 0) {
+        throw "Unable to query tags for '$Name' from '$($dep.uri)'."
+    }
+
+    $tags = @()
+    foreach ($line in $result.Output) {
+        if ($line -match 'refs/tags/(.+)$') {
+            $tags += $Matches[1]
+        }
+    }
+    $releaseTags = @($tags | Where-Object { $_ -match '^v?\d+\.\d+\.\d+$' } |
+        Sort-Object -Property @{ Expression = { [version](($_ -replace '^v', '')) }; Descending = $true })
+
+    if ($releaseTags.Count -eq 0) {
+        Write-Host 'No x.y.z release tags were found.'
+        return
+    }
+    Write-Host 'Available releases (newest first):'
+    foreach ($tag in @($releaseTags | Select-Object -First 12)) {
+        $marker = if ($tag -eq [string]$dep.version) { '  *' } else { '   ' }
+        Write-Host "$marker $tag"
+    }
+    Write-Host "Use '.\\zap version $Name <tag>' to select a release."
+}
+
 function Show-List {
     param($Config)
     Write-Host "Environment : $(Get-ProjectValue $Config 'environment' 'generic')"
@@ -934,6 +1081,12 @@ Zap project dependency helper
 
   .\zap list
       Show dependency sources, versions, and selected component targets.
+
+  .\zap status
+      Show resolved dependency paths, Git HEADs, dirty state, and whether each checkout matches zap.yml.
+
+  .\zap update <dependency>
+      Query the dependency remote and show the newest release tags without changing zap.yml.
 
   .\zap version <dependency> <version-or-git-ref>
       Change a dependency version/ref in zap.yml and regenerate CMake glue.
@@ -982,6 +1135,11 @@ switch ($Command.ToLowerInvariant()) {
         Write-Host 'zap.yml, generated CMake glue, and CMake integration are in sync.'
     }
     'list' { Show-List (Read-ZapConfig) }
+    'status' { Show-Status (Read-ZapConfig) }
+    'update' {
+        if ($Arguments.Count -lt 1) { throw 'Usage: .\zap update <dependency>' }
+        Show-AvailableVersions (Read-ZapConfig) $Arguments[0]
+    }
     'version' {
         if ($Arguments.Count -lt 2) { throw 'Usage: .\\zap version <dependency> <version-or-ref>' }
         $config = Read-ZapConfig

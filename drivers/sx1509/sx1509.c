@@ -10,16 +10,6 @@
 #endif
 
 static inline bool sx1509_pin_valid(uint8_t pin) { return pin < SX1509_PIN_COUNT; }
-// LED driver per-pin register addresses from Table 10
-static const uint8_t s_reg_ton[SX1509_PIN_COUNT] = {
-    0x29, 0x2C, 0x2F, 0x32,
-    0x35, 0x3A, 0x3F, 0x44,
-    0x49, 0x4C, 0x4F, 0x52,
-    0x55, 0x5A, 0x5F, 0x64
-};
-
-
-
 // ----------------- Raw register access -----------------
 
 int sx1509_reg_read8(sx1509_t *dev, uint8_t reg, uint8_t *val) {
@@ -585,10 +575,6 @@ int sx1509_pwm9_start_10pct(sx1509_t *dev)
 
     // 5) Start LED driver: set RegData bit low (datasheet tutorial step)
     rc = sx1509_digital_write(dev, 9, false);
-
-    uint8_t ion9;
-    sx1509_reg_read8(dev, 0x4D, &ion9);  // should be ~26 for 10%
-    ion9 = ion9; // silence unused variable warning
 
     return rc;
 }

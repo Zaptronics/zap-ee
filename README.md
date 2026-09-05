@@ -57,8 +57,10 @@ ZapEE also ships a small optional Windows helper under `tools/zap/`. Copy
 The helper writes ordinary `cmake/zap_deps.cmake`, keeps dependency source
 checkouts in a configurable project folder such as `deps/`, and runs CMake
 configure without compiling so IDE completion is immediately available. It can
-also update dependency refs/components and generate an application-owned adapter
-skeleton.
+also update dependency refs/components, report resolved/dirty checkout status,
+list available release tags, and generate an application-owned adapter skeleton.
+Managed Git checkouts are never revision-switched while they contain local
+changes.
 
 This layer is deliberately optional: standard CMake/FetchContent and native
 Zephyr remain first-class interfaces. See `docs/PROJECT_INTEGRATION.md` and
@@ -74,7 +76,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.4.0
+    GIT_TAG        v0.4.1
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(zapee)

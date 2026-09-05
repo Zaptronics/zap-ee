@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1 - diagnostics, project-helper hardening and CI
+
+- Add an operation-locked `ztm_adc_get_status()` snapshot API with device/configuration state, probe types, counters, last event/error and last measurement diagnostics.
+- Preserve the last structured ZTM_ADC event for diagnostic snapshots.
+- Refuse to overwrite dirty Git dependency checkouts and report missing refs with a clear `zap` error after fetch.
+- Add `zap status` for resolved checkout/version/dirty-state diagnostics and `zap update <dependency>` to list remote release tags.
+- Expand CI across GCC/Clang and Debug/Release with strict warnings, an installed-package consumer test, and a Windows `zap` helper integration fixture.
+- Remove a dead SX1509 LED-register lookup table exposed by the stricter CI build.
+- Document the ZTM_STEPPER/L6470 portability plan before extraction, including its distinct CS-per-byte daisy-chain transport requirement.
+
 ## 0.4.0 - portable SPI and ZTM_ADC
 
 - Add the portable `zap::spi` device-transaction contract with explicit begin/transfer/end chip-select semantics.

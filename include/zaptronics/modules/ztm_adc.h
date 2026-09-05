@@ -128,6 +128,27 @@ typedef struct {
     uint32_t actual;
 } ztm_adc_event_t;
 
+
+typedef struct {
+    bool ready;
+    uint8_t device_id;
+    bool configuration_verified;
+    bool por_fault_active;
+
+    double reference_resistor_ohms;
+    ad7124_iout_val_t rtd_excitation;
+    thermocouple_type_t thermocouple_types[ZTM_ADC_TC_COUNT];
+
+    uint32_t last_error_mask;
+    uint32_t error_event_count;
+    uint32_t communication_error_count;
+    uint32_t configuration_error_count;
+
+    bool last_event_valid;
+    ztm_adc_event_t last_event;
+    ztm_adc_measure_diag_t last_measurement;
+} ztm_adc_status_t;
+
 typedef void (*ztm_adc_event_fn)(void *context, const ztm_adc_event_t *event);
 
 typedef struct {
@@ -138,6 +159,11 @@ typedef struct {
     ztm_adc_event_fn event;
 } ztm_adc_config_t;
 
+/*
+ * Instance storage is public so applications can allocate it statically. Treat
+ * the fields as implementation detail; use the public accessors, especially
+ * ztm_adc_get_status(), rather than coupling application code to this layout.
+ */
 typedef struct {
     ad7124_dev_t adc;
     ztm_adc_config_t config;
@@ -154,6 +180,8 @@ typedef struct {
     uint32_t configuration_error_count;
     bool configuration_verified;
     bool por_fault_active;
+    bool last_event_valid;
+    ztm_adc_event_t last_event;
     ztm_adc_measure_diag_t last_measurement;
 } ztm_adc_t;
 
@@ -185,6 +213,16 @@ bool ztm_adc_calibrate_tc_setup(ztm_adc_t *device);
 bool ztm_adc_calibrate_rtd_setup(ztm_adc_t *device);
 bool ztm_adc_calibrate_all(ztm_adc_t *device);
 bool ztm_adc_iout_off(ztm_adc_t *device);
+
+/*
+ * Copy a coherent, operation-locked snapshot of the module's public diagnostic
+ * state. Applications should prefer this accessor over reading ztm_adc_t
+ * fields directly; the struct layout is public only so callers can allocate
+ * instances without dynamic memory.
+ */
+bool ztm_adc_get_status(ztm_adc_t *device, ztm_adc_status_t *status);
+
+/* Convenience accessor retained for focused measurement diagnostics. */
 bool ztm_adc_get_last_measurement(ztm_adc_t *device, ztm_adc_measure_diag_t *diag);
 
 bool ztm_adc_pt1000_temperature(double resistance_ohms, double *temperature_c);

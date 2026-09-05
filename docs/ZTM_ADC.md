@@ -91,6 +91,35 @@ selected NIST thermocouple type. If the cold-junction measurement is unavailable
 the SPI transaction can still succeed and the sample reports
 `ZTM_ADC_SENSOR_CJC_UNAVAILABLE`.
 
+## Status and diagnostics
+
+Applications should use `ztm_adc_get_status()` rather than reading `ztm_adc_t`
+fields directly. The instance struct remains visible so embedded applications can
+allocate it statically without a heap, but its internal layout is not the
+diagnostic API contract.
+
+```c
+ztm_adc_status_t status;
+if (ztm_adc_get_status(&adc, &status)) {
+    if (!status.configuration_verified) {
+        service_configuration_fault();
+    }
+    if (status.last_event_valid) {
+        record_event(status.last_event.type);
+    }
+}
+```
+
+The snapshot is copied while holding the optional module operation lock and
+includes readiness, AD7124 device ID, configuration/POR state, reference and
+excitation settings, all three thermocouple types, error counters/mask, the last
+structured event, and the last measurement diagnostic record. This makes it
+suitable for CLIs, telemetry and service diagnostics without coupling them to the
+mutable module instance.
+
+`ztm_adc_get_last_measurement()` remains available as a smaller convenience
+accessor when only the most recent measurement trace is required.
+
 ## Locking and thread safety
 
 The module performs multi-register sequences during measurements, calibration,

@@ -14,7 +14,15 @@ and run:
 ```powershell
 .\zap new
 .\zap
+.\zap status
+.\zap update zapee
 ```
+
+`status` reports the resolved dependency checkout, Git HEAD, dirty/clean state
+and whether it matches the manifest. `update <dependency>` queries the remote and
+lists recent `vX.Y.Z` release tags without modifying the manifest; use
+`zap version` to select one. Managed Git checkouts are never revision-switched
+while dirty.
 
 For Pico SDK projects, `zap new` places dependency loading after `pico_sdk_init()`
 so SDK-specific ZapEE targets are discoverable, and defaults the first module example to `zap::pico_ztm_pwm`. Zephyr projects default the standard Zephyr ZTM_PWM adapter through Kconfig. Generic projects continue to use portable module targets and can generate an application-owned adapter skeleton. The generated skeleton includes the current I2C, SPI, operation-lock and timing contracts so it can be adapted for either ZTM_PWM or ZTM_ADC.

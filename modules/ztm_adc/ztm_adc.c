@@ -28,7 +28,14 @@ static const uint8_t g_tc_ain_negative[ZTM_ADC_TC_COUNT] = { 1u, 3u, 5u };
 
 static void ztm_adc_emit(ztm_adc_t *device, const ztm_adc_event_t *event)
 {
-    if (device != NULL && event != NULL && device->config.event != NULL) {
+    if (device == NULL || event == NULL) {
+        return;
+    }
+
+    device->last_event = *event;
+    device->last_event_valid = true;
+
+    if (device->config.event != NULL) {
         device->config.event(device->config.event_context, event);
     }
 }
@@ -782,7 +789,7 @@ bool ztm_adc_pt1000_temperature(double resistance_ohms, double *temperature_c)
 
 bool ztm_adc_read_cold_junction(ztm_adc_t *module, ztm_adc_rtd_sample_t *sample)
 {
-    if (!module->ready || !sample || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !sample || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ztm_adc_measure_cjc_unlocked(module, sample);
@@ -792,7 +799,7 @@ bool ztm_adc_read_cold_junction(ztm_adc_t *module, ztm_adc_rtd_sample_t *sample)
 
 bool ztm_adc_read_rtd(ztm_adc_t *module, uint8_t rtd_1based, ztm_adc_rtd_sample_t *sample)
 {
-    if (!module->ready || !sample || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !sample || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ztm_adc_measure_external_rtd_unlocked(module, rtd_1based, sample);
@@ -804,7 +811,7 @@ bool ztm_adc_read_all_rtds(ztm_adc_t *module,
                             ztm_adc_rtd_sample_t *cold_junction,
                             ztm_adc_rtd_sample_t samples[ZTM_ADC_RTD_COUNT])
 {
-    if (!module->ready || !cold_junction || !samples || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !cold_junction || !samples || !ztm_adc_lock(module)) {
         return false;
     }
 
@@ -821,7 +828,7 @@ bool ztm_adc_read_all_rtds(ztm_adc_t *module,
 
 bool ztm_adc_set_thermocouple_type(ztm_adc_t *module, uint8_t tc_1based, thermocouple_type_t type)
 {
-    if (!module->ready || tc_1based < 1u || tc_1based > ZTM_ADC_TC_COUNT ||
+    if (!module || !module->ready || tc_1based < 1u || tc_1based > ZTM_ADC_TC_COUNT ||
         type < THERMOCOUPLE_TYPE_B || type >= THERMOCOUPLE_TYPE_COUNT ||
         !ztm_adc_lock(module)) {
         return false;
@@ -834,7 +841,7 @@ bool ztm_adc_set_thermocouple_type(ztm_adc_t *module, uint8_t tc_1based, thermoc
 
 bool ztm_adc_get_thermocouple_type(ztm_adc_t *module, uint8_t tc_1based, thermocouple_type_t *type)
 {
-    if (!module->ready || !type || tc_1based < 1u ||
+    if (!module || !module->ready || !type || tc_1based < 1u ||
         tc_1based > ZTM_ADC_TC_COUNT || !ztm_adc_lock(module)) {
         return false;
     }
@@ -846,7 +853,7 @@ bool ztm_adc_get_thermocouple_type(ztm_adc_t *module, uint8_t tc_1based, thermoc
 
 bool ztm_adc_read_thermocouple(ztm_adc_t *module, uint8_t tc_1based, ztm_adc_tc_sample_t *sample)
 {
-    if (!module->ready || !sample || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !sample || !ztm_adc_lock(module)) {
         return false;
     }
 
@@ -864,7 +871,7 @@ bool ztm_adc_read_thermocouple(ztm_adc_t *module, uint8_t tc_1based, ztm_adc_tc_
 
 bool ztm_adc_read_all_thermocouples(ztm_adc_t *module, ztm_adc_tc_sample_t samples[ZTM_ADC_TC_COUNT])
 {
-    if (!module->ready || !samples || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !samples || !ztm_adc_lock(module)) {
         return false;
     }
 
@@ -888,7 +895,7 @@ bool ztm_adc_read_all(ztm_adc_t *module,
                       ztm_adc_rtd_sample_t rtds[ZTM_ADC_RTD_COUNT],
                       ztm_adc_tc_sample_t thermocouples[ZTM_ADC_TC_COUNT])
 {
-    if (!module->ready || !cold_junction || !rtds || !thermocouples ||
+    if (!module || !module->ready || !cold_junction || !rtds || !thermocouples ||
         !ztm_adc_lock(module)) {
         return false;
     }
@@ -914,7 +921,7 @@ bool ztm_adc_read_all(ztm_adc_t *module,
 
 bool ztm_adc_read_error_status(ztm_adc_t *module, uint8_t *status, uint32_t *error_mask)
 {
-    if (!module->ready || !status || !error_mask || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !status || !error_mask || !ztm_adc_lock(module)) {
         return false;
     }
 
@@ -933,7 +940,7 @@ bool ztm_adc_read_error_status(ztm_adc_t *module, uint8_t *status, uint32_t *err
 
 bool ztm_adc_verify_configuration(ztm_adc_t *module)
 {
-    if (!module->ready || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ztm_adc_verify_configuration_unlocked(module, true);
@@ -943,7 +950,7 @@ bool ztm_adc_verify_configuration(ztm_adc_t *module)
 
 bool ztm_adc_read_register(ztm_adc_t *module, uint8_t address, uint8_t width_bytes, uint32_t *value)
 {
-    if (!module->ready || !value || address > 0x38u ||
+    if (!module || !module->ready || !value || address > 0x38u ||
         width_bytes < 1u || width_bytes > 3u || !ztm_adc_lock(module)) {
         return false;
     }
@@ -1002,7 +1009,7 @@ static bool ztm_adc_calibrate_rtd_unlocked(ztm_adc_t *module)
 
 bool ztm_adc_calibrate_tc_setup(ztm_adc_t *module)
 {
-    if (!module->ready || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ztm_adc_calibrate_tc_unlocked(module);
@@ -1012,7 +1019,7 @@ bool ztm_adc_calibrate_tc_setup(ztm_adc_t *module)
 
 bool ztm_adc_calibrate_rtd_setup(ztm_adc_t *module)
 {
-    if (!module->ready || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ztm_adc_calibrate_rtd_unlocked(module);
@@ -1022,7 +1029,7 @@ bool ztm_adc_calibrate_rtd_setup(ztm_adc_t *module)
 
 bool ztm_adc_calibrate_all(ztm_adc_t *module)
 {
-    if (!module->ready || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ztm_adc_calibrate_tc_unlocked(module) &&
@@ -1033,12 +1040,40 @@ bool ztm_adc_calibrate_all(ztm_adc_t *module)
 
 bool ztm_adc_iout_off(ztm_adc_t *module)
 {
-    if (!module->ready || !ztm_adc_lock(module)) {
+    if (!module || !module->ready || !ztm_adc_lock(module)) {
         return false;
     }
     bool ok = ad7124_disable_iouts(&module->adc);
     ztm_adc_unlock(module);
     return ok;
+}
+
+bool ztm_adc_get_status(ztm_adc_t *module, ztm_adc_status_t *status)
+{
+    if (!module || !status || !ztm_adc_lock(module)) {
+        return false;
+    }
+
+    memset(status, 0, sizeof(*status));
+    status->ready = module->ready;
+    status->device_id = module->device_id;
+    status->configuration_verified = module->configuration_verified;
+    status->por_fault_active = module->por_fault_active;
+    status->reference_resistor_ohms = module->reference_resistor_ohms;
+    status->rtd_excitation = module->rtd_excitation;
+    memcpy(status->thermocouple_types,
+           module->thermocouple_types,
+           sizeof(status->thermocouple_types));
+    status->last_error_mask = module->last_error_mask;
+    status->error_event_count = module->error_event_count;
+    status->communication_error_count = module->communication_error_count;
+    status->configuration_error_count = module->configuration_error_count;
+    status->last_event_valid = module->last_event_valid;
+    status->last_event = module->last_event;
+    status->last_measurement = module->last_measurement;
+
+    ztm_adc_unlock(module);
+    return true;
 }
 
 bool ztm_adc_get_last_measurement(ztm_adc_t *module, ztm_adc_measure_diag_t *diag)

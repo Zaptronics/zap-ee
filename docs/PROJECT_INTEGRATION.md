@@ -21,7 +21,7 @@ dependencies:
   zapee:
     type: git
     uri: https://github.com/Zaptronics/zap-ee.git
-    version: v0.4.0
+    version: v0.4.1
     override_var: ZAPEE_SOURCE
     zephyr_module: true
     components:
@@ -37,11 +37,21 @@ Typical commands:
 ```powershell
 .\zap new
 .\zap                     # sync deps + CMake configure only
-.\zap list
-.\zap version zapee v0.4.0
+.\zap list                # configured dependency/component summary
+.\zap status              # checkout path, HEAD, dirty state and version match
+.\zap update zapee        # list remote release tags; does not change zap.yml
+.\zap version zapee v0.4.1
 .\zap add zapee zap::ztm_pwm
 .\zap adapter stm32
 ```
+
+For Git dependencies, `zap` refuses to switch revisions when the managed checkout
+contains local modifications or untracked files. This prevents a routine sync
+from trampling experiments made under `deps/`; commit/stash those changes or use
+the dependency's `override_var` to point at a deliberate development checkout.
+After fetching, the requested ref is verified before checkout, so a tag that has
+not been pushed produces a Zap-specific error naming the dependency and missing
+ref instead of Git's ambiguous pathspec/`--detach` message.
 
 `deps_dir` controls where dependency **source checkouts** live. By default this is
 `./deps`, giving IDE users a stable, browsable tree such as:
@@ -122,7 +132,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.4.0
+    GIT_TAG        v0.4.1
 )
 FetchContent_MakeAvailable(zapee)
 
