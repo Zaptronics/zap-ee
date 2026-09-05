@@ -220,12 +220,12 @@ function Get-GeneratedCMakeText {
 
         $overrideVar = [string]$dep.override_var
         if ($overrideVar) {
-            $lines.Add("set($overrideVar \"\" CACHE PATH \"Optional local source override for $name\")")
+            $lines.Add(('set({0} "" CACHE PATH "Optional local source override for {1}")' -f $overrideVar, $name))
             $lines.Add("if($overrideVar)")
             $lines.Add('    FetchContent_Declare(')
             $lines.Add("        $safeName")
             $lines.Add('        SOURCE_DIR "${' + $overrideVar + '}"')
-            $lines.Add("        BINARY_DIR \"`${CMAKE_BINARY_DIR}/_zapdeps/$safeName\"")
+            $lines.Add(('        BINARY_DIR "${{CMAKE_BINARY_DIR}}/_zapdeps/{0}"' -f $safeName))
             $lines.Add('    )')
             $lines.Add('else()')
         }
@@ -278,11 +278,12 @@ function Get-GeneratedCMakeText {
     $lines.Add('        message(FATAL_ERROR "zap_apply_dependencies: target ''${target_name}'' does not exist")')
     $lines.Add('    endif()')
     if ($linkTargets.Count -gt 0 -and $environment -ne 'zephyr') {
-        $lines.Add('    target_link_libraries("${target_name}" PRIVATE')
+        # Set LINK_LIBRARIES directly instead of calling target_link_libraries().
+        # This is intentionally signature-agnostic: existing projects may already
+        # use either CMake's plain or keyword target_link_libraries() form.
         foreach ($component in $linkTargets) {
-            $lines.Add('        ' + $component)
+            $lines.Add('    set_property(TARGET "${target_name}" APPEND PROPERTY LINK_LIBRARIES ' + $component + ')')
         }
-        $lines.Add('    )')
     } else {
         $lines.Add('    # No direct CMake component links are required for this configuration.')
     }
@@ -461,8 +462,8 @@ function Resolve-DependencyPath {
 }
 
 function Invoke-Native {
-    param([string]$Program, [string[]]$Args)
-    & $Program @Args
+    param([string]$Program, [string[]]$ArgumentList)
+    & $Program @ArgumentList
     if ($LASTEXITCODE -ne 0) {
         throw "'$Program' failed with exit code $LASTEXITCODE."
     }
@@ -492,11 +493,11 @@ function Sync-Dependencies {
                         if ($items.Count -gt 0) { throw "Dependency directory '$path' exists but is not a Git checkout." }
                     }
                     Write-Host "Cloning $name -> $path"
-                    Invoke-Native $git.Source @('clone', [string]$dep.uri, $path)
+                    Invoke-Native -Program $git.Source -ArgumentList @('clone', [string]$dep.uri, $path)
                 }
                 Write-Host "Synchronising $name @ $($dep.version)"
-                Invoke-Native $git.Source @('-C', $path, 'fetch', '--tags', '--prune', 'origin')
-                Invoke-Native $git.Source @('-C', $path, 'checkout', '--detach', [string]$dep.version)
+                Invoke-Native -Program $git.Source -ArgumentList @('-C', $path, 'fetch', '--tags', '--prune', 'origin')
+                Invoke-Native -Program $git.Source -ArgumentList @('-C', $path, 'checkout', '--detach', [string]$dep.version)
             }
             'path' {
                 if (-not (Test-Path -LiteralPath $path)) { throw "Local dependency '$name' was not found at '$path'." }
@@ -522,9 +523,15 @@ function Invoke-ConfigureOnly {
             if (-not (Test-Path -LiteralPath $buildScript)) {
                 throw 'pico-sdk environment expects build.ps1 in the project root.'
             }
-            $args = @('-ConfigureOnly', '-BuildDir', $buildDir)
-            if ($board) { $args += @('-Board', $board) }
-            & $buildScript @args
+            # Hashtable splatting is required for named script parameters. Array
+            # splatting is positional, which would bind "-ConfigureOnly" to the
+            # first parameter (Configuration) instead of treating it as a switch.
+            $buildParams = @{
+                ConfigureOnly = $true
+                BuildDir      = $buildDir
+            }
+            if ($board) { $buildParams.Board = $board }
+            & $buildScript @buildParams
             if ($LASTEXITCODE -ne 0) { throw "build.ps1 configure failed with exit code $LASTEXITCODE." }
         }
         'zephyr' {
@@ -551,12 +558,12 @@ function Invoke-ConfigureOnly {
                 $westArgs += '--'
                 $westArgs += $cmakeArgs
             }
-            Invoke-Native $west.Source $westArgs
+            Invoke-Native -Program $west.Source -ArgumentList $westArgs
         }
         'generic' {
             $cmake = Get-Command cmake -ErrorAction SilentlyContinue
             if (-not $cmake) { throw 'cmake was not found.' }
-            Invoke-Native $cmake.Source @('-S', $ProjectRoot, '-B', (Join-Path $ProjectRoot $buildDir), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON')
+            Invoke-Native -Program $cmake.Source -ArgumentList @('-S', $ProjectRoot, '-B', (Join-Path $ProjectRoot $buildDir), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON')
         }
         default { throw "Unsupported project.environment '$environment'." }
     }
