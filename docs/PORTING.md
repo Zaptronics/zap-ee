@@ -31,6 +31,17 @@ read transaction. `lock` and `unlock` are optional; a threaded application shoul
 use them to protect a shared controller, while a deliberately single-threaded
 bare-metal application may leave both NULL.
 
+## ZTM_ADC platform requirements
+
+`ztm_adc_config_t` needs:
+
+- a `zap_spi_device_t` whose `begin()` / `transfer()` / `end()` operations keep the same device selected across a multi-part AD7124 transaction;
+- a high-resolution `zap_time_t` providing microsecond delay and monotonic microsecond time;
+- an optional `zap_lock_t` protecting complete high-level measurement/configuration sequences; and
+- an optional structured event callback.
+
+The SPI adapter owns bus/controller configuration and chip-select policy. The generic AD7124 driver assumes the supplied SPI endpoint is configured for the AD7124's required mode; it does not reconfigure a shared controller itself.
+
 ## Adapter skeleton
 
 Projects using the optional helper can run:
@@ -50,7 +61,7 @@ IRQ routing, mutex implementation, and timeout policy are application/platform
 concerns rather than properties of a chip driver.
 
 Before generating a custom adapter, check the built-in platform support. ZapEE
-0.3.0 provides `zap::pico` / `zap::pico_ztm_pwm` and native Zephyr adapters.
+0.4.0 provides generic Pico SDK and native Zephyr I2C/SPI/lock/time adapters, plus convenience targets for both ZTM_PWM and ZTM_ADC.
 See `PLATFORM_ADAPTERS.md` and `ZTM_PWM.md`.
 
 ## CMake inclusion

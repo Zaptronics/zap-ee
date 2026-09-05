@@ -3,7 +3,9 @@
 zaptronics_add_component(
     NAME zephyr
     SOURCES zephyr.c
-    PUBLIC_DEPS zap::i2c
+    PUBLIC_DEPS
+        zap::i2c
+        zap::spi
     VENDOR_EXTENSIONS
 )
 
@@ -13,5 +15,14 @@ zaptronics_add_component(
     PUBLIC_DEPS
         zap::zephyr
         zap::ztm_pwm
+    VENDOR_EXTENSIONS
+)
+
+zaptronics_add_component(
+    NAME zephyr_ztm_adc
+    SOURCES ztm_adc.c
+    PUBLIC_DEPS
+        zap::zephyr
+        zap::ztm_adc
     VENDOR_EXTENSIONS
 )

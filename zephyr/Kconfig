@@ -20,4 +20,18 @@ config ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER
 	  Provide ZapEE's standard Zephyr I2C, timing, module-enable and IRQ
 	  adapter. Disable this when the application supplies its own adapter.
 
+config ZAPEE_ZTM_ADC
+	bool "ZTM_ADC temperature module"
+	help
+	  Enable the portable ZTM_ADC board library. Its AD7124 and
+	  thermocouple conversion dependencies are pulled in automatically.
+
+config ZAPEE_ZTM_ADC_ZEPHYR_ADAPTER
+	bool "Zephyr adapter for ZTM_ADC"
+	depends on ZAPEE_ZTM_ADC
+	default y
+	help
+	  Provide ZapEE's standard Zephyr SPI, timing and operation-lock adapter.
+	  Disable this when the application supplies its own platform adapter.
+
 endif # ZAPEE

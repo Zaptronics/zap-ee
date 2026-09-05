@@ -17,10 +17,7 @@ and run:
 ```
 
 For Pico SDK projects, `zap new` places dependency loading after `pico_sdk_init()`
-so SDK-specific ZapEE targets are discoverable, and defaults the ZTM_PWM example
-to `zap::pico_ztm_pwm`. Zephyr projects default the standard Zephyr ZTM_PWM
-adapter through Kconfig. Generic projects continue to use `zap::ztm_pwm` and can
-generate an application-owned adapter skeleton.
+so SDK-specific ZapEE targets are discoverable, and defaults the first module example to `zap::pico_ztm_pwm`. Zephyr projects default the standard Zephyr ZTM_PWM adapter through Kconfig. Generic projects continue to use portable module targets and can generate an application-owned adapter skeleton. The generated skeleton includes the current I2C, SPI, operation-lock and timing contracts so it can be adapted for either ZTM_PWM or ZTM_ADC.
 
 The project-root copy is intentional: the helper must exist before ZapEE itself
 has been fetched. Its generated CMake is ordinary text and can be inspected,

@@ -21,7 +21,7 @@ dependencies:
   zapee:
     type: git
     uri: https://github.com/Zaptronics/zap-ee.git
-    version: v0.3.0
+    version: v0.4.0
     override_var: ZAPEE_SOURCE
     zephyr_module: true
     components:
@@ -38,7 +38,7 @@ Typical commands:
 .\zap new
 .\zap                     # sync deps + CMake configure only
 .\zap list
-.\zap version zapee v0.3.0
+.\zap version zapee v0.4.0
 .\zap add zapee zap::ztm_pwm
 .\zap adapter stm32
 ```
@@ -74,9 +74,10 @@ module enable/IRQ:
       - zap::pico_ztm_pwm
 ```
 
-`zap::pico_ztm_pwm` pulls `zap::ztm_pwm` and all chip drivers transitively. The
-application still chooses/configures its Pico I2C instance, SDA/SCL pins and bus
-frequency. The Zaptronics Hub intentionally keeps `zap::ztm_pwm` because its
+`zap::pico_ztm_pwm` pulls `zap::ztm_pwm` and all chip drivers transitively.
+`zap::pico_ztm_adc` does the same for ZTM_ADC and adds the generic Pico SPI and
+operation-lock adapters. The application still chooses/configures its MCU bus
+instances and pins. The Zaptronics Hub intentionally keeps `zap::ztm_pwm` because its
 control signals and bus locking are motherboard-managed.
 
 For Zephyr, use the portable component/module selection plus Kconfig:
@@ -121,7 +122,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.3.0
+    GIT_TAG        v0.4.0
 )
 FetchContent_MakeAvailable(zapee)
 

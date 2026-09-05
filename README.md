@@ -74,7 +74,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.3.0
+    GIT_TAG        v0.4.0
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(zapee)
@@ -134,10 +134,11 @@ to a west workspace or set `ZEPHYR_MODULES`, then enable:
 CONFIG_ZAPEE=y
 ```
 
-Enable ZTM_PWM with `CONFIG_ZAPEE_ZTM_PWM=y`. The standard Zephyr adapter is
-enabled by default with `CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER=y`; disable it only
-when the application supplies a custom platform adapter. The module still pulls
-its SX1509, PAC195x and EMC2303 dependencies automatically.
+Enable ZTM_PWM with `CONFIG_ZAPEE_ZTM_PWM=y` or ZTM_ADC with
+`CONFIG_ZAPEE_ZTM_ADC=y`. Their standard Zephyr adapters are enabled by default
+with the corresponding `*_ZEPHYR_ADAPTER` option; disable one only when the
+application supplies its own platform adapter. Chip-driver dependencies remain
+transitive.
 
 See `zephyr/README.md`.
 
@@ -148,14 +149,20 @@ Public CMake targets use the `zap::` namespace:
 ```text
 zap::core
 zap::i2c
+zap::spi
 zap::sx1509
 zap::pac195x
 zap::emc2303
+zap::ad7124
+zap::thermocouple
 zap::ztm_pwm
+zap::ztm_adc
 zap::pico
 zap::pico_ztm_pwm
+zap::pico_ztm_adc
 zap::zephyr
 zap::zephyr_ztm_pwm
+zap::zephyr_ztm_adc
 ```
 
 Source target names are internal implementation details.
@@ -208,11 +215,21 @@ write/repeated-start/read transaction. Optional lock/unlock callbacks make a
 shared bus safe in threaded environments without imposing an RTOS on bare-metal
 applications.
 
+## ZTM_ADC portability contract
+
+`zap::ztm_adc` is also an explicit-instance board library. It uses the portable
+`zap_spi_device_t` transaction contract, high-resolution `zap_time_t`, and an
+optional `zap_lock_t` that protects complete multi-register measurement
+sequences. The module emits structured reset/error/configuration events rather
+than printing. AD7124 and thermocouple conversion logic are independent targets
+and can be reused by other modules. See `docs/ZTM_ADC.md`.
+
 ## Supported platform adapters
 
-For Pico SDK projects, link `zap::pico_ztm_pwm` for a ready-made I2C/time/GPIO
-adapter around an application-configured Pico I2C controller. For Zephyr, enable
-`CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER=y` and supply the I2C/GPIO devices through
+For Pico SDK projects, link `zap::pico_ztm_pwm` or `zap::pico_ztm_adc`. The
+generic `zap::pico` target provides I2C, SPI, locks and timing around
+application-configured controllers. For Zephyr, enable the corresponding
+`CONFIG_ZAPEE_*_ZEPHYR_ADAPTER` option and supply devices through
 devicetree/application configuration.
 
 These adapters are conveniences, not requirements. The Hub continues to use its

@@ -430,7 +430,7 @@ function Write-NewConfig {
         '  zapee:',
         '    type: git',
         '    uri: git@github.com:Zaptronics/zap-ee.git',
-        '    version: v0.3.0',
+        '    version: v0.4.0',
         '    override_var: ZAPEE_SOURCE',
         '    zephyr_module: true',
         '    components:',
@@ -622,13 +622,13 @@ function New-Adapter {
     if (Test-Path -LiteralPath $outDir) { throw "Adapter directory '$outDir' already exists." }
     New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
-    $guard = ('ZAP_' + $Name.ToUpperInvariant() + '_ADAPTER_H')
     $h = @"
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zaptronics/modules/ztm_adc.h>
 #include <zaptronics/modules/ztm_pwm.h>
 
 #ifdef __cplusplus
@@ -637,6 +637,8 @@ extern "C" {
 
 typedef struct {
     zap_i2c_bus_t i2c;
+    zap_spi_device_t spi;
+    zap_lock_t operation_lock;
     zap_time_t time;
     void *platform_context;
 } zap_${Name}_adapter_t;
@@ -656,6 +658,12 @@ void zap_${Name}_ztm_pwm_config(ztm_pwm_config_t *config,
                                 ztm_pwm_irq_read_fn irq_read,
                                 void *event_context,
                                 ztm_pwm_event_fn event);
+
+/* Fill a ZTM_ADC configuration with this adapter's SPI/time/operation lock. */
+void zap_${Name}_ztm_adc_config(ztm_adc_config_t *config,
+                                zap_${Name}_adapter_t *adapter,
+                                void *event_context,
+                                ztm_adc_event_fn event);
 
 #ifdef __cplusplus
 }
@@ -711,15 +719,60 @@ static int platform_i2c_probe(void *context, uint8_t address_7bit, uint32_t time
     return ZAP_I2C_E_UNSUPPORTED;
 }
 
-static int platform_lock(void *context, uint32_t timeout_us)
+static int platform_i2c_lock(void *context, uint32_t timeout_us)
 {
     (void)context;
     (void)timeout_us;
-    /* Optional for bare metal. Replace with an RTOS/OS mutex when needed. */
+    /* Optional: lock the shared I2C controller. Return 0 on success. */
     return ZAP_I2C_OK;
 }
 
-static void platform_unlock(void *context)
+static void platform_i2c_unlock(void *context)
+{
+    (void)context;
+}
+
+static int platform_spi_begin(void *context, uint32_t timeout_us)
+{
+    (void)context;
+    (void)timeout_us;
+    /* TODO: lock/configure the shared SPI controller and assert this device's CS. */
+    return ZAP_SPI_E_UNSUPPORTED;
+}
+
+static int platform_spi_transfer(void *context,
+                                 const uint8_t *tx,
+                                 uint8_t *rx,
+                                 size_t len,
+                                 uint8_t read_fill,
+                                 uint32_t timeout_us)
+{
+    (void)context;
+    (void)tx;
+    (void)rx;
+    (void)len;
+    (void)read_fill;
+    (void)timeout_us;
+    /* TODO: transfer while CS remains asserted. Use read_fill for read-only clocks. */
+    return ZAP_SPI_E_UNSUPPORTED;
+}
+
+static int platform_spi_end(void *context)
+{
+    (void)context;
+    /* TODO: deassert CS and release the shared SPI controller. */
+    return ZAP_SPI_E_UNSUPPORTED;
+}
+
+static int platform_operation_lock(void *context, uint32_t timeout_us)
+{
+    (void)context;
+    (void)timeout_us;
+    /* Optional: lock one module instance across complete multi-register operations. */
+    return 0;
+}
+
+static void platform_operation_unlock(void *context)
 {
     (void)context;
 }
@@ -731,27 +784,61 @@ static void platform_delay_ms(void *context, uint32_t delay_ms)
     /* TODO: call your platform millisecond delay/sleep primitive. */
 }
 
+static void platform_delay_us(void *context, uint32_t delay_us)
+{
+    (void)context;
+    (void)delay_us;
+    /* TODO: call your platform microsecond delay primitive. */
+}
+
+static uint64_t platform_now_us(void *context)
+{
+    (void)context;
+    /* TODO: return a monotonic microsecond timebase. */
+    return 0u;
+}
+
 static const zap_i2c_bus_ops_t g_i2c_ops = {
     .write = platform_i2c_write,
     .write_read = platform_i2c_write_read,
     .probe = platform_i2c_probe,
-    .lock = platform_lock,
-    .unlock = platform_unlock,
+    .lock = platform_i2c_lock,
+    .unlock = platform_i2c_unlock,
+};
+
+static const zap_spi_device_ops_t g_spi_ops = {
+    .begin = platform_spi_begin,
+    .transfer = platform_spi_transfer,
+    .end = platform_spi_end,
 };
 
 int zap_${Name}_adapter_init(zap_${Name}_adapter_t *adapter, void *platform_context)
 {
     if (adapter == NULL) {
-        return ZAP_I2C_E_BAD_ARG;
+        return -1;
     }
     memset(adapter, 0, sizeof(*adapter));
     adapter->platform_context = platform_context;
+
     adapter->i2c.context = platform_context;
     adapter->i2c.ops = &g_i2c_ops;
     adapter->i2c.timeout_us = ZAP_I2C_DEFAULT_TIMEOUT_US;
+
+    adapter->spi.context = platform_context;
+    adapter->spi.ops = &g_spi_ops;
+    adapter->spi.timeout_us = ZAP_SPI_DEFAULT_TIMEOUT_US;
+    adapter->spi.read_fill = 0u;
+
+    adapter->operation_lock.context = platform_context;
+    adapter->operation_lock.acquire = platform_operation_lock;
+    adapter->operation_lock.release = platform_operation_unlock;
+    adapter->operation_lock.timeout_us = ZTM_ADC_OPERATION_TIMEOUT_US;
+
     adapter->time.context = platform_context;
     adapter->time.delay_ms = platform_delay_ms;
-    return ZAP_I2C_OK;
+    adapter->time.delay_us = platform_delay_us;
+    adapter->time.now_us = platform_now_us;
+    return 0;
 }
 
 void zap_${Name}_ztm_pwm_config(ztm_pwm_config_t *config,
@@ -776,6 +863,22 @@ void zap_${Name}_ztm_pwm_config(ztm_pwm_config_t *config,
     config->event_context = event_context;
     config->event = event;
 }
+
+void zap_${Name}_ztm_adc_config(ztm_adc_config_t *config,
+                                zap_${Name}_adapter_t *adapter,
+                                void *event_context,
+                                ztm_adc_event_fn event)
+{
+    if (config == NULL || adapter == NULL) {
+        return;
+    }
+    memset(config, 0, sizeof(*config));
+    config->spi = &adapter->spi;
+    config->time = &adapter->time;
+    config->lock = &adapter->operation_lock;
+    config->event_context = event_context;
+    config->event = event;
+}
 "@
 
     $readme = @"
@@ -783,14 +886,16 @@ void zap_${Name}_ztm_pwm_config(ztm_pwm_config_t *config,
 
 Generated by `zap adapter $Name`.
 
-1. Implement the I2C callbacks in `zap_${Name}_adapter.c` using your MCU/RTOS SDK.
-2. `write_read()` must perform one atomic write / repeated-start / read transaction.
-3. Keep `lock` / `unlock` for threaded systems; set both function pointers to NULL for a deliberately unlocked bare-metal bus.
-4. Implement the delay callback.
-5. Supply the ZTM_PWM power-enable and IRQ callbacks from your board/application layer.
+The skeleton exposes the portable interfaces currently used by ZapEE modules:
+
+1. Implement the I2C callbacks for I2C-based modules such as ZTM_PWM. `write_read()` must be one atomic write / repeated-start / read transaction.
+2. Implement SPI `begin` / `transfer` / `end` for SPI-based modules such as ZTM_ADC. Keep the selected device active from `begin` until `end` and configure the bus for that endpoint before the first transfer.
+3. Replace the bus/operation lock TODOs with your RTOS/OS mutexes when concurrency is possible. For deliberately single-threaded bare metal, set the relevant lock callbacks/pointers to NULL instead.
+4. Implement millisecond delay, microsecond delay, and a monotonic microsecond clock.
+5. Supply ZTM_PWM power-enable/IRQ callbacks from your board layer when that module is used.
 6. Add this `.c` file to your application target; ZapEE itself remains unchanged.
 
-The generated code intentionally returns `ZAP_I2C_E_UNSUPPORTED` until the platform-specific TODOs are implemented.
+Unused interfaces may be removed from the application-owned skeleton. The generated transport callbacks intentionally return `*_E_UNSUPPORTED` until platform-specific TODOs are implemented.
 "@
 
     [System.IO.File]::WriteAllText((Join-Path $outDir "zap_${Name}_adapter.h"), $h, (New-Object System.Text.UTF8Encoding($false)))
@@ -840,7 +945,7 @@ Zap project dependency helper
       Remove a component target.
 
   .\zap adapter [name]
-      Generate a portable I2C/time + ZTM_PWM adapter skeleton in project.adapters_dir.
+      Generate a portable I2C/SPI/lock/time adapter skeleton for ZTM_PWM/ZTM_ADC in project.adapters_dir.
 
 zap.yml intentionally uses a small, documented YAML subset so this script has no Python,
 PowerShell-module, or package-manager dependency. Standard CMake/FetchContent and Zephyr

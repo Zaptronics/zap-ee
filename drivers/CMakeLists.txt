@@ -2,3 +2,5 @@
 add_subdirectory(sx1509)
 add_subdirectory(pac195x)
 add_subdirectory(emc2303)
+add_subdirectory(ad7124)
+add_subdirectory(thermocouple)

@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Pico SDK public headers expose SDK types, so this adapter is intentionally a
-# platform-specific target. The portable ZapEE core remains strict ISO C11.
 zaptronics_add_component(
     NAME pico
     SOURCES pico.c
     PUBLIC_DEPS
         zap::i2c
+        zap::spi
         hardware_i2c
+        hardware_spi
         pico_sync
     PRIVATE_DEPS
         pico_time
+        hardware_gpio
     VENDOR_EXTENSIONS
 )
 
@@ -22,5 +23,14 @@ zaptronics_add_component(
         zap::ztm_pwm
     PRIVATE_DEPS
         hardware_gpio
+    VENDOR_EXTENSIONS
+)
+
+zaptronics_add_component(
+    NAME pico_ztm_adc
+    SOURCES ztm_adc.c
+    PUBLIC_DEPS
+        zap::pico
+        zap::ztm_adc
     VENDOR_EXTENSIONS
 )

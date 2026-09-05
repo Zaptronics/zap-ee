@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - portable SPI and ZTM_ADC
+
+- Add the portable `zap::spi` device-transaction contract with explicit begin/transfer/end chip-select semantics.
+- Add optional `zap_lock_t` operation-level locking and high-resolution microsecond timing callbacks.
+- Extract the AD7124-8 driver and NIST thermocouple conversion library from the Hub.
+- Extract ZTM_ADC as an explicit-instance `zap::ztm_adc` module with no Pico SDK, Hub logging, or global-state dependency.
+- Add structured ZTM_ADC reset/error/configuration events.
+- Add generic Pico SDK SPI/lock/time support plus `zap::pico_ztm_adc`.
+- Add native Zephyr SPI/lock/time support plus `zap::zephyr_ztm_adc`.
+- Add host tests for SPI transaction semantics and ZTM_ADC Pt1000/thermocouple conversion math.
+
 ## 0.3.0 - reference platform adapters and ZTM_PWM developer experience
 
 - Add reusable Pico SDK I2C/time adapter target `zap::pico`.

@@ -26,3 +26,11 @@ endif()
 if(CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER)
     zaptronics_zephyr_enable_component(zephyr_ztm_pwm)
 endif()
+
+if(CONFIG_ZAPEE_ZTM_ADC)
+    zaptronics_zephyr_enable_component(ztm_adc)
+endif()
+
+if(CONFIG_ZAPEE_ZTM_ADC_ZEPHYR_ADAPTER)
+    zaptronics_zephyr_enable_component(zephyr_ztm_adc)
+endif()
