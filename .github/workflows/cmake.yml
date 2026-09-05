@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+name: CMake
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DZAPEE_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Install
+        run: cmake --install build --prefix "${{ runner.temp }}/zaptronics-install"

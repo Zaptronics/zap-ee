@@ -1,0 +1,7 @@
+/build/
+/out/
+/.cache/
+CMakeUserPresets.json
+.DS_Store
+Thumbs.db
+*.patch

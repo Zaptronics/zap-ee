@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+menuconfig ZAPEE
+	bool "ZapEE - Zaptronics Embedded Electronics Library"
+	help
+	  Enable portable Zaptronics chip drivers and module libraries.
+
+if ZAPEE
+
+config ZAPEE_ZTM_PWM
+	bool "ZTM_PWM module"
+	help
+	  Enable the portable ZTM_PWM board library. Its SX1509, PAC195x and
+	  EMC2303 driver dependencies are pulled in automatically. The application
+	  still provides the platform I2C, timing, power and IRQ callbacks.
+
+endif # ZAPEE
