@@ -12,7 +12,7 @@ RTOSs, operating environments and architectures.
 
 - portable C11 core;
 - Apache-2.0 licensed source;
-- strict C11 (`C_EXTENSIONS` disabled);
+- strict ISO C11 for portable components; SDK adapters may enable vendor-required compiler extensions;
 - standard CMake as the primary integration contract;
 - native Zephyr external-module support;
 - one source of truth for shared chip drivers;
@@ -29,7 +29,7 @@ include/zaptronics/       public headers
   modules/                Zaptronics-module public APIs (as extracted)
 drivers/                  generic silicon implementations
 modules/                  Zaptronics board/module implementations
-platform/                 platform-adapter contract and examples
+platform/                 portable contracts + optional SDK adapters
 cmake/                    component/package helpers
 zephyr/                   native Zephyr module integration
 tests/                    host-side tests
@@ -74,7 +74,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.2.1
+    GIT_TAG        v0.3.0
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(zapee)
@@ -134,9 +134,10 @@ to a west workspace or set `ZEPHYR_MODULES`, then enable:
 CONFIG_ZAPEE=y
 ```
 
-Enable ZTM_PWM with `CONFIG_ZAPEE_ZTM_PWM=y`. The module option pulls in
-its SX1509, PAC195x and EMC2303 target dependencies automatically; the Zephyr
-application does not list implementation chips itself.
+Enable ZTM_PWM with `CONFIG_ZAPEE_ZTM_PWM=y`. The standard Zephyr adapter is
+enabled by default with `CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER=y`; disable it only
+when the application supplies a custom platform adapter. The module still pulls
+its SX1509, PAC195x and EMC2303 dependencies automatically.
 
 See `zephyr/README.md`.
 
@@ -151,6 +152,10 @@ zap::sx1509
 zap::pac195x
 zap::emc2303
 zap::ztm_pwm
+zap::pico
+zap::pico_ztm_pwm
+zap::zephyr
+zap::zephyr_ztm_pwm
 ```
 
 Source target names are internal implementation details.
@@ -202,6 +207,18 @@ The `write_read` I2C adapter operation is explicitly one atomic
 write/repeated-start/read transaction. Optional lock/unlock callbacks make a
 shared bus safe in threaded environments without imposing an RTOS on bare-metal
 applications.
+
+## Supported platform adapters
+
+For Pico SDK projects, link `zap::pico_ztm_pwm` for a ready-made I2C/time/GPIO
+adapter around an application-configured Pico I2C controller. For Zephyr, enable
+`CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER=y` and supply the I2C/GPIO devices through
+devicetree/application configuration.
+
+These adapters are conveniences, not requirements. The Hub continues to use its
+own adapter because its module enable/IRQ signals live behind a motherboard I/O
+expander and its I2C controller is managed by `ztmb/bus`. See `docs/ZTM_PWM.md`
+and `docs/PLATFORM_ADAPTERS.md`.
 
 ## Versioning
 

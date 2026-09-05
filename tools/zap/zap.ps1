@@ -352,11 +352,21 @@ function Ensure-CMakeIntegration {
 
     if (-not $text.Contains($includeBegin)) {
         $block = "$includeBegin`r`ninclude(`"`${CMAKE_CURRENT_LIST_DIR}/cmake/zap_deps.cmake`")`r`n$includeEnd`r`n"
-        $projectMatch = [regex]::Match($text, '(?m)^\s*project\s*\([^\r\n]+\)\s*$')
-        if (-not $projectMatch.Success) {
-            throw 'Could not find project(...) in CMakeLists.txt. Add cmake/zap_deps.cmake manually.'
+        $environment = (Get-ProjectValue $Config 'environment' (Get-InferredEnvironment)).ToLowerInvariant()
+        if ($environment -eq 'pico-sdk') {
+            # Pico-specific ZapEE targets are created only after pico_sdk_init()
+            # has defined the SDK's CMake targets (hardware_i2c, pico_sync, ...).
+            $anchor = [regex]::Match($text, '(?m)^\s*pico_sdk_init\s*\(\s*\)\s*$')
+            if (-not $anchor.Success) {
+                throw 'Could not find pico_sdk_init() in CMakeLists.txt. Add cmake/zap_deps.cmake after pico_sdk_init() manually.'
+            }
+        } else {
+            $anchor = [regex]::Match($text, '(?m)^\s*project\s*\([^\r\n]+\)\s*$')
+            if (-not $anchor.Success) {
+                throw 'Could not find project(...) in CMakeLists.txt. Add cmake/zap_deps.cmake manually.'
+            }
         }
-        $insertAt = $projectMatch.Index + $projectMatch.Length
+        $insertAt = $anchor.Index + $anchor.Length
         $text = $text.Insert($insertAt, "`r`n`r`n$block")
         $changed = $true
     }
@@ -413,23 +423,25 @@ function Write-NewConfig {
         '  adapters_dir: adapters'
     )
     if ($board) { $lines += "  board: $board" }
+    $defaultComponent = if ($environment -eq 'pico-sdk') { 'zap::pico_ztm_pwm' } else { 'zap::ztm_pwm' }
     $lines += @(
         '',
         'dependencies:',
         '  zapee:',
         '    type: git',
         '    uri: git@github.com:Zaptronics/zap-ee.git',
-        '    version: v0.2.1',
+        '    version: v0.3.0',
         '    override_var: ZAPEE_SOURCE',
         '    zephyr_module: true',
         '    components:',
-        '      - zap::ztm_pwm'
+        "      - $defaultComponent"
     )
     if ($environment -eq 'zephyr') {
         $lines += @(
             '    zephyr_config:',
             '      - CONFIG_ZAPEE=y',
-            '      - CONFIG_ZAPEE_ZTM_PWM=y'
+            '      - CONFIG_ZAPEE_ZTM_PWM=y',
+            '      - CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER=y'
         )
     }
 

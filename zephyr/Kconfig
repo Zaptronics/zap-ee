@@ -10,7 +10,14 @@ config ZAPEE_ZTM_PWM
 	bool "ZTM_PWM module"
 	help
 	  Enable the portable ZTM_PWM board library. Its SX1509, PAC195x and
-	  EMC2303 driver dependencies are pulled in automatically. The application
-	  still provides the platform I2C, timing, power and IRQ callbacks.
+	  EMC2303 driver dependencies are pulled in automatically.
+
+config ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER
+	bool "Zephyr adapter for ZTM_PWM"
+	depends on ZAPEE_ZTM_PWM
+	default y
+	help
+	  Provide ZapEE's standard Zephyr I2C, timing, module-enable and IRQ
+	  adapter. Disable this when the application supplies its own adapter.
 
 endif # ZAPEE

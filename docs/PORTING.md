@@ -49,6 +49,10 @@ such as controller instance, bus frequency, GPIO ownership, module-enable wiring
 IRQ routing, mutex implementation, and timeout policy are application/platform
 concerns rather than properties of a chip driver.
 
+Before generating a custom adapter, check the built-in platform support. ZapEE
+0.3.0 provides `zap::pico` / `zap::pico_ztm_pwm` and native Zephyr adapters.
+See `PLATFORM_ADAPTERS.md` and `ZTM_PWM.md`.
+
 ## CMake inclusion
 
 Add the generated adapter `.c` to your application target. ZapEE itself is not

@@ -13,7 +13,7 @@ include(CMakeParseArguments)
 # Public headers live under <repo>/include/zaptronics/... and are installed by
 # the top-level project. Dependencies are CMake target names, normally zap::...
 function(zaptronics_add_component)
-    set(options)
+    set(options VENDOR_EXTENSIONS)
     set(one_value_args NAME)
     set(multi_value_args SOURCES PUBLIC_DEPS PRIVATE_DEPS COMPILE_DEFINITIONS)
     cmake_parse_arguments(ZC "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
@@ -35,10 +35,15 @@ function(zaptronics_add_component)
     set_target_properties(${target} PROPERTIES EXPORT_NAME ${ZC_NAME})
 
     target_compile_features(${target} PUBLIC c_std_11)
+    if(ZC_VENDOR_EXTENSIONS)
+        set(_zc_extensions YES)
+    else()
+        set(_zc_extensions NO)
+    endif()
     set_target_properties(${target} PROPERTIES
         C_STANDARD 11
         C_STANDARD_REQUIRED YES
-        C_EXTENSIONS NO
+        C_EXTENSIONS ${_zc_extensions}
     )
     target_link_libraries(${target} PUBLIC zap_core ${ZC_PUBLIC_DEPS})
     if(ZC_PRIVATE_DEPS)

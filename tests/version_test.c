@@ -7,7 +7,7 @@ int main(void)
     if (ZAPEE_VERSION_MAJOR != 0) {
         return 1;
     }
-    if (strcmp(ZAPEE_VERSION_STRING, "0.2.1") != 0) {
+    if (strcmp(ZAPEE_VERSION_STRING, "0.3.0") != 0) {
         return 2;
     }
     return 0;

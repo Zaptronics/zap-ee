@@ -25,6 +25,10 @@ typedef enum {
  * write_read() must perform one atomic write/repeated-start/read transaction.
  * probe(), lock(), and unlock() are optional. If lock() is provided, unlock()
  * must also be provided. Callbacks must not retain the supplied buffers.
+ *
+ * timeout_us is a requested upper bound where the platform API can support one.
+ * Some SDKs expose no portable per-transfer timeout; such adapters must document
+ * their platform timeout policy rather than silently inventing semantics.
  */
 typedef struct {
     int (*write)(void *context,

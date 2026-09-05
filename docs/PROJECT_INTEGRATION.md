@@ -21,7 +21,7 @@ dependencies:
   zapee:
     type: git
     uri: https://github.com/Zaptronics/zap-ee.git
-    version: v0.2.1
+    version: v0.3.0
     override_var: ZAPEE_SOURCE
     zephyr_module: true
     components:
@@ -38,7 +38,7 @@ Typical commands:
 .\zap new
 .\zap                     # sync deps + CMake configure only
 .\zap list
-.\zap version zapee v0.2.1
+.\zap version zapee v0.3.0
 .\zap add zapee zap::ztm_pwm
 .\zap adapter stm32
 ```
@@ -61,6 +61,34 @@ The helper understands a deliberately small YAML subset (two-space indentation,
 scalar keys, and simple lists) so it has no Python, PyYAML, PowerShell-module, or
 package-manager dependency. Dependency types currently supported by generated
 CMake are `git`, `url`, and `path`.
+
+
+### Built-in platform adapters
+
+The manifest can select a platform-specific convenience target instead of the
+portable module target. For a new Pico SDK project using direct MCU GPIOs for
+module enable/IRQ:
+
+```yaml
+    components:
+      - zap::pico_ztm_pwm
+```
+
+`zap::pico_ztm_pwm` pulls `zap::ztm_pwm` and all chip drivers transitively. The
+application still chooses/configures its Pico I2C instance, SDA/SCL pins and bus
+frequency. The Zaptronics Hub intentionally keeps `zap::ztm_pwm` because its
+control signals and bus locking are motherboard-managed.
+
+For Zephyr, use the portable component/module selection plus Kconfig:
+
+```yaml
+    components:
+      - zap::ztm_pwm
+    zephyr_config:
+      - CONFIG_ZAPEE=y
+      - CONFIG_ZAPEE_ZTM_PWM=y
+      - CONFIG_ZAPEE_ZTM_PWM_ZEPHYR_ADAPTER=y
+```
 
 ### Pico SDK
 
@@ -93,7 +121,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.2.1
+    GIT_TAG        v0.3.0
 )
 FetchContent_MakeAvailable(zapee)
 

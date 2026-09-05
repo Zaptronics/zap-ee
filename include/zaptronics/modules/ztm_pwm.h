@@ -150,6 +150,12 @@ typedef int (*ztm_pwm_power_get_fn)(void *context, bool *enabled);
 typedef int (*ztm_pwm_irq_read_fn)(void *context, bool *asserted);
 typedef void (*ztm_pwm_event_fn)(void *context, const ztm_pwm_event_t *event);
 
+/** Platform/application services required by one ZTM_PWM instance.
+ *
+ * i2c, time and power_set are required. power_get, irq_read and event are
+ * optional. control_context is passed to power/IRQ callbacks; event_context is
+ * passed independently to the structured event callback.
+ */
 typedef struct {
     const zap_i2c_bus_t *i2c;
     const zap_time_t *time;
@@ -188,8 +194,11 @@ typedef struct {
     bool irq_unresolved_reported;
 } ztm_pwm_t;
 
+/** Initialise one explicit ZTM_PWM instance and place the board in a safe, ready state. */
 int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config);
+/** Scan/clear module IRQ sources and emit configured structured events. */
 int ztm_pwm_poll(ztm_pwm_t *device);
+/** Stop outputs, disable module power, and mark the instance not ready. */
 int ztm_pwm_deinit(ztm_pwm_t *device);
 bool ztm_pwm_ready(const ztm_pwm_t *device);
 bool ztm_pwm_power_off(ztm_pwm_t *device);
@@ -202,6 +211,7 @@ int ztm_pwm_i2c_scan(ztm_pwm_t *device, ztm_pwm_i2c_scan_result_t *result, bool 
 const char *ztm_pwm_pac_topology_name(ztm_pwm_pac_topology_t topology);
 const char *ztm_pwm_current_source_name(ztm_pwm_current_source_t source);
 
+/* Low-side PWM outputs: channels are 1..12 and duty is integer percent 0..100. */
 bool ztm_pwm_channel_set(ztm_pwm_t *device, uint8_t channel_1based, uint8_t duty_pct);
 bool ztm_pwm_channel_set_all(ztm_pwm_t *device, uint8_t duty_pct);
 bool ztm_pwm_channel_stop(ztm_pwm_t *device, uint8_t channel_1based);
@@ -209,11 +219,13 @@ bool ztm_pwm_stop_all(ztm_pwm_t *device);
 uint8_t ztm_pwm_channel_get_duty(const ztm_pwm_t *device, uint8_t channel_1based);
 uint8_t ztm_pwm_channel_get_sx_pin(uint8_t channel_1based);
 
+/* Per-channel current measurement through the board's PAC195x routing. */
 bool ztm_pwm_read_channel(ztm_pwm_t *device, uint8_t channel_1based, bool averaged, ztm_pwm_current_reading_t *reading);
 bool ztm_pwm_read_current_uA(ztm_pwm_t *device, uint8_t channel_1based, bool averaged, int32_t *current_uA);
 bool ztm_pwm_read_all_currents_uA(ztm_pwm_t *device, bool averaged, int32_t current_uA[ZTM_PWM_CHANNEL_COUNT]);
 bool ztm_pwm_channel_get_current_route(const ztm_pwm_t *device, uint8_t channel_1based, uint8_t *pac_1based, ztm_pwm_current_source_t *source, uint8_t *input_1based);
 
+/* Fan control/tachometer API: fans are numbered 1..6. */
 bool ztm_pwm_fan_set(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct);
 bool ztm_pwm_fan_set_raw(ztm_pwm_t *device, uint8_t fan_1based, uint8_t raw);
 bool ztm_pwm_fan_set_target_rpm(ztm_pwm_t *device, uint8_t fan_1based, uint32_t rpm);
@@ -231,6 +243,7 @@ ztm_pwm_fan_tach_status_t ztm_pwm_fan_get_tach_status(ztm_pwm_t *device, uint8_t
 bool ztm_pwm_fan_get_route(uint8_t fan_1based, uint8_t *emc_1based, uint8_t *local_fan_1based);
 uint8_t ztm_pwm_fan_get_duty(const ztm_pwm_t *device, uint8_t fan_1based);
 
+/* General-purpose module GPIO API: GPIOs are numbered 1..4. */
 bool ztm_pwm_gpio_configure(ztm_pwm_t *device, uint8_t gpio_1based, ztm_pwm_gpio_mode_t mode);
 bool ztm_pwm_gpio_configure_input(ztm_pwm_t *device, uint8_t gpio_1based, ztm_pwm_gpio_pull_t pull);
 bool ztm_pwm_gpio_configure_irq(ztm_pwm_t *device, uint8_t gpio_1based, sx1509_sense_t sense);

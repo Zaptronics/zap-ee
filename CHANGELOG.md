@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - reference platform adapters and ZTM_PWM developer experience
+
+- Add reusable Pico SDK I2C/time adapter target `zap::pico`.
+- Add `zap::pico_ztm_pwm` for direct Pico GPIO enable/IRQ integration.
+- Add native Zephyr I2C/time and ZTM_PWM GPIO adapters.
+- Add complete Pico SDK and Zephyr ZTM_PWM examples.
+- Add customer-facing ZTM_PWM API and platform-adapter documentation.
+- Keep portable drivers/modules strict ISO C11 while allowing SDK adapter targets to use required vendor/compiler extensions.
+- Document platform timeout/probe differences instead of hiding them behind false portability guarantees.
+
 ## 0.2.1 - optional project helper workflow
 
 - Add the optional `zap` PowerShell project helper for YAML-managed dependencies.
