@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - optional project helper workflow
+
+- Add the optional `zap` PowerShell project helper for YAML-managed dependencies.
+- Document `zap.yml`, generated CMake glue, root-level dependency source checkouts, and the no-helper CMake path.
+- Add project-porting guidance and adapter-generation workflow.
+- Keep standard CMake/FetchContent and native Zephyr integration as first-class interfaces; the helper remains optional.
+
 ## 0.2.0 - ZTM_PWM portability migration
 
 - Adopt Apache License 2.0 for the public source release.

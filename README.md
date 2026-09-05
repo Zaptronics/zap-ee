@@ -42,6 +42,28 @@ repository is consumed with FetchContent/add_subdirectory, component directories
 are excluded from the parent project's default build and only linked targets are
 built. A top-level ZapEE build builds all components for CI/install.
 
+## Optional `zap.yml` project helper
+
+For teams that prefer not to edit CMake for routine dependency/version changes,
+ZapEE also ships a small optional Windows helper under `tools/zap/`. Copy
+`zap.ps1` and `zap.cmd` to the consuming project root, then use a human-readable
+`zap.yml` manifest.
+
+```powershell
+.\zap new
+.\zap
+```
+
+The helper writes ordinary `cmake/zap_deps.cmake`, keeps dependency source
+checkouts in a configurable project folder such as `deps/`, and runs CMake
+configure without compiling so IDE completion is immediately available. It can
+also update dependency refs/components and generate an application-owned adapter
+skeleton.
+
+This layer is deliberately optional: standard CMake/FetchContent and native
+Zephyr remain first-class interfaces. See `docs/PROJECT_INTEGRATION.md` and
+`docs/PORTING.md`.
+
 ## Standard CMake: FetchContent
 
 Pin a tested release tag:
@@ -52,7 +74,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.2.0
+    GIT_TAG        v0.2.1
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(zapee)

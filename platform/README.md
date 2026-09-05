@@ -26,3 +26,5 @@ real driver requires them.
 - adapters may use Zephyr, Pico SDK, STM32 HAL, ESP-IDF, vendor SDKs or custom
   bare-metal implementations;
 - host-side fake adapters remain possible for unit testing.
+
+See `docs/PORTING.md` for the application adapter workflow and the optional `zap adapter` skeleton generator.
