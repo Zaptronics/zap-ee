@@ -1,0 +1,143 @@
+# Zap package metadata. Used by the optional native `zap` tool for sparse checkout.
+schema: 1
+
+package:
+  name: ZapEE
+  description: Zaptronics Embedded Electronics Library
+  cmake_project: ZapEE
+  paths:
+    - cmake
+    - include
+    - zephyr
+
+components:
+  zap::core:
+    kind: core
+    description: ZapEE common C11 interface and version headers
+
+  zap::i2c:
+    kind: transport
+    description: Portable I2C transport abstraction
+    paths:
+      - platform
+
+  zap::spi:
+    kind: transport
+    description: Portable SPI transport abstraction
+    paths:
+      - platform
+
+  zap::sx1509:
+    kind: driver
+    description: Semtech SX1509 GPIO/PWM expander driver
+    depends:
+      - zap::i2c
+    paths:
+      - drivers/sx1509
+
+  zap::pac195x:
+    kind: driver
+    description: Microchip PAC195x current/voltage monitor driver
+    depends:
+      - zap::i2c
+    paths:
+      - drivers/pac195x
+
+  zap::emc2303:
+    kind: driver
+    description: Microchip EMC2303 fan controller driver
+    depends:
+      - zap::i2c
+    paths:
+      - drivers/emc2303
+
+  zap::ad7124:
+    kind: driver
+    description: Analog Devices AD7124 precision ADC driver
+    depends:
+      - zap::spi
+    paths:
+      - drivers/ad7124
+
+  zap::thermocouple:
+    kind: driver
+    description: Portable thermocouple conversion helpers
+    paths:
+      - drivers/thermocouple
+
+  zap::ztm_pwm:
+    kind: module
+    description: Zaptronics ZTM_PWM module
+    pico: zap::pico_ztm_pwm
+    zephyr: zap::zephyr_ztm_pwm
+    depends:
+      - zap::sx1509
+      - zap::pac195x
+      - zap::emc2303
+    paths:
+      - modules/ztm_pwm
+
+  zap::ztm_adc:
+    kind: module
+    description: Zaptronics ZTM_ADC module
+    pico: zap::pico_ztm_adc
+    zephyr: zap::zephyr_ztm_adc
+    depends:
+      - zap::ad7124
+      - zap::thermocouple
+    paths:
+      - modules/ztm_adc
+
+  zap::pico:
+    kind: platform
+    description: Raspberry Pi Pico SDK transport/time/locking adapters
+    depends:
+      - zap::i2c
+      - zap::spi
+    paths:
+      - platform
+
+  zap::pico_ztm_pwm:
+    kind: adapter
+    description: Pico SDK adapter for ZTM_PWM
+    depends:
+      - zap::pico
+      - zap::ztm_pwm
+    paths:
+      - platform
+
+  zap::pico_ztm_adc:
+    kind: adapter
+    description: Pico SDK adapter for ZTM_ADC
+    depends:
+      - zap::pico
+      - zap::ztm_adc
+    paths:
+      - platform
+
+  zap::zephyr:
+    kind: platform
+    description: Zephyr transport/time/locking adapters
+    depends:
+      - zap::i2c
+      - zap::spi
+    paths:
+      - platform
+
+  zap::zephyr_ztm_pwm:
+    kind: adapter
+    description: Zephyr adapter for ZTM_PWM
+    depends:
+      - zap::zephyr
+      - zap::ztm_pwm
+    paths:
+      - platform
+
+  zap::zephyr_ztm_adc:
+    kind: adapter
+    description: Zephyr adapter for ZTM_ADC
+    depends:
+      - zap::zephyr
+      - zap::ztm_adc
+    paths:
+      - platform

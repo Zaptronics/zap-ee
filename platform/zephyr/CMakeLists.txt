@@ -9,6 +9,7 @@ zaptronics_add_component(
     VENDOR_EXTENSIONS
 )
 
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../modules/ztm_pwm/CMakeLists.txt")
 zaptronics_add_component(
     NAME zephyr_ztm_pwm
     SOURCES ztm_pwm.c
@@ -17,7 +18,9 @@ zaptronics_add_component(
         zap::ztm_pwm
     VENDOR_EXTENSIONS
 )
+endif()
 
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../modules/ztm_adc/CMakeLists.txt")
 zaptronics_add_component(
     NAME zephyr_ztm_adc
     SOURCES ztm_adc.c
@@ -26,3 +29,4 @@ zaptronics_add_component(
         zap::ztm_adc
     VENDOR_EXTENSIONS
 )
+endif()

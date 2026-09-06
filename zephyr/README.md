@@ -10,7 +10,7 @@ manifest:
   projects:
     - name: zap-ee
       url: https://github.com/Zaptronics/zap-ee
-      revision: v0.4.1
+      revision: v0.5.0
       path: modules/lib/zap-ee
 ```
 

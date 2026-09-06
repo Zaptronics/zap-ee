@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     ZapEE
-    VERSION 0.4.1
+    VERSION 0.5.0
     DESCRIPTION "Zaptronics Embedded Electronics Library"
     LANGUAGES C
 )
@@ -50,15 +50,17 @@ configure_file(
 # parent project's default ALL target: only linked modules/drivers are built.
 # When this repository is the top-level project, build all components so CI and
 # installation validate/package the complete released library set.
-if(ZAPEE_IS_TOP_LEVEL)
-    add_subdirectory(platform)
-    add_subdirectory(drivers)
-    add_subdirectory(modules)
-else()
-    add_subdirectory(platform EXCLUDE_FROM_ALL)
-    add_subdirectory(drivers EXCLUDE_FROM_ALL)
-    add_subdirectory(modules EXCLUDE_FROM_ALL)
-endif()
+# Component directories may be absent in a zap-managed sparse checkout.
+# Full source checkouts still see and build the complete component set.
+foreach(_zapee_dir platform drivers modules)
+    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${_zapee_dir}/CMakeLists.txt")
+        if(ZAPEE_IS_TOP_LEVEL)
+            add_subdirectory(${_zapee_dir})
+        else()
+            add_subdirectory(${_zapee_dir} EXCLUDE_FROM_ALL)
+        endif()
+    endif()
+endforeach()
 
 if(ZAPEE_BUILD_TESTS)
     include(CTest)

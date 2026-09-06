@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 - native Zap tooling and sparse package metadata
+
+- Add root `zap-package.yml` metadata describing CMake components, transitive component dependencies, platform-adapter mappings, and sparse source paths.
+- Make root/driver/module CMake discovery safe when unselected component directories are absent from a sparse checkout.
+- Keep SDK-specific Pico/Zephyr module adapters conditional on the corresponding module source being present.
+- Move the optional project helper out of ZapEE into the standalone cross-platform `Zaptronics/zap` Go application.
+- Preserve normal shallow CMake `FetchContent` as the no-tool fallback; `zap` is an optional developer convenience rather than a build requirement.
+
 ## 0.4.1 - diagnostics, project-helper hardening and CI
 
 - Add an operation-locked `ztm_adc_get_status()` snapshot API with device/configuration state, probe types, counters, last event/error and last measurement diagnostics.

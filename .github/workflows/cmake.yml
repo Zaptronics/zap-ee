@@ -57,98 +57,18 @@ jobs:
           cmake --build consumer-build --parallel
           ./consumer-build/zapee_find_package_consumer
 
-  zap-helper-windows:
-    runs-on: windows-latest
+
+  sparse-component-build:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Parse helper
-        shell: pwsh
-        run: .\tools\zap\zap.ps1 help
-      - name: Exercise path dependency workflow
-        shell: pwsh
+      - name: Keep only the ZTM_PWM component graph
         run: |
-          $fixture = Join-Path $env:RUNNER_TEMP 'zap-path-fixture'
-          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
-          Copy-Item .\tools\zap\zap.ps1 (Join-Path $fixture 'zap.ps1')
-          Copy-Item .\tools\zap\zap.cmd (Join-Path $fixture 'zap.cmd')
-          @'
-          cmake_minimum_required(VERSION 3.20)
-          project(zap_helper_fixture LANGUAGES C)
-          add_executable(app main.c)
-          '@ | Set-Content (Join-Path $fixture 'CMakeLists.txt')
-          'int main(void) { return 0; }' | Set-Content (Join-Path $fixture 'main.c')
-          $repo = (Resolve-Path .).Path.Replace('\', '/')
-          @"
-          schema: 1
-          project:
-            environment: generic
-            target: app
-            build_dir: build
-            deps_dir: deps
-            adapters_dir: adapters
-          dependencies:
-            zapee:
-              type: path
-              uri: $repo
-              components:
-                - zap::core
-          "@ | Set-Content (Join-Path $fixture 'zap.yml')
-          Push-Location $fixture
-          .\zap generate
-          .\zap check
-          .\zap list
-          .\zap status
-          .\zap
-          Pop-Location
-      - name: Exercise Git safety and diagnostics
-        shell: pwsh
-        run: |
-          git tag -f v9.8.7
-          $fixture = Join-Path $env:RUNNER_TEMP 'zap-git-fixture'
-          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
-          Copy-Item .\tools\zap\zap.ps1 (Join-Path $fixture 'zap.ps1')
-          Copy-Item .\tools\zap\zap.cmd (Join-Path $fixture 'zap.cmd')
-          @'
-          cmake_minimum_required(VERSION 3.20)
-          project(zap_helper_git_fixture LANGUAGES C)
-          add_executable(app main.c)
-          '@ | Set-Content (Join-Path $fixture 'CMakeLists.txt')
-          'int main(void) { return 0; }' | Set-Content (Join-Path $fixture 'main.c')
-          $repo = (Resolve-Path .).Path.Replace('\', '/')
-          @"
-          schema: 1
-          project:
-            environment: generic
-            target: app
-            build_dir: build
-            deps_dir: deps
-          dependencies:
-            zapee:
-              type: git
-              uri: $repo
-              version: v9.8.7
-              components:
-                - zap::core
-          "@ | Set-Content (Join-Path $fixture 'zap.yml')
-          Push-Location $fixture
-          .\zap
-          .\zap status
-          $versions = (.\zap update zapee | Out-String)
-          if ($versions -notmatch 'v9\.8\.7') { throw 'zap update did not report the test release tag.' }
-
-          'local edit' | Set-Content .\deps\zapee\dirty.txt
-          $dirtyFailed = $false
-          try { .\zap } catch { $dirtyFailed = $true; $dirtyOutput = $_.Exception.Message }
-          if (-not $dirtyFailed) { throw 'zap unexpectedly overwrote a dirty dependency checkout.' }
-          if ($dirtyOutput -notmatch 'local changes') { throw 'zap dirty-checkout error was not descriptive.' }
-          Remove-Item .\deps\zapee\dirty.txt
-
-          (Get-Content .\zap.yml -Raw).Replace('version: v9.8.7', 'version: v0.0.0-does-not-exist') |
-            Set-Content .\zap.yml
-          $missingFailed = $false
-          try { .\zap } catch { $missingFailed = $true; $missingOutput = $_.Exception.Message }
-          if (-not $missingFailed) { throw 'zap unexpectedly accepted a missing Git ref.' }
-          if ($missingOutput -notmatch 'requested Git ref') { throw 'zap missing-ref error was not descriptive.' }
-          Pop-Location
+          git sparse-checkout init --cone
+          git sparse-checkout set cmake include zephyr platform drivers/sx1509 drivers/pac195x drivers/emc2303 modules/ztm_pwm
+          test ! -e modules/ztm_adc
+          test ! -e drivers/ad7124
+      - name: Configure sparse ZapEE tree
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-Wall -Wextra -Wpedantic -Werror"
+      - name: Build sparse ZapEE tree
+        run: cmake --build build --parallel

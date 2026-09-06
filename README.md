@@ -42,29 +42,27 @@ repository is consumed with FetchContent/add_subdirectory, component directories
 are excluded from the parent project's default build and only linked targets are
 built. A top-level ZapEE build builds all components for CI/install.
 
-## Optional `zap.yml` project helper
+## Optional native `zap` project helper
 
 For teams that prefer not to edit CMake for routine dependency/version changes,
-ZapEE also ships a small optional Windows helper under `tools/zap/`. Copy
-`zap.ps1` and `zap.cmd` to the consuming project root, then use a human-readable
-`zap.yml` manifest.
+Zaptronics provides the separate native [`Zaptronics/zap`](https://github.com/Zaptronics/zap)
+command-line tool. It is a small Go-built executable for Windows, Linux and macOS;
+no PowerShell, Python, Node.js, .NET, or other runtime is required.
 
-```powershell
-.\zap new
-.\zap
+```text
+zap init
+zap sync      # bare `zap` is equivalent
 ```
 
-The helper writes ordinary `cmake/zap_deps.cmake`, keeps dependency source
-checkouts in a configurable project folder such as `deps/`, and runs CMake
-configure without compiling so IDE completion is immediately available. It can
-also update dependency refs/components, report resolved/dirty checkout status,
-list available release tags, and generate an application-owned adapter skeleton.
-Managed Git checkouts are never revision-switched while they contain local
-changes.
+Projects keep a readable `zap.yml`. For Git dependencies that publish
+`zap-package.yml`, the tool performs a depth-1 sparse checkout containing only
+the requested components, their transitive component dependencies, and package
+common paths. ZapEE publishes this metadata at its repository root.
 
-This layer is deliberately optional: standard CMake/FetchContent and native
-Zephyr remain first-class interfaces. See `docs/PROJECT_INTEGRATION.md` and
-`docs/PORTING.md`.
+The generated `cmake/zap_deps.cmake` remains ordinary CMake. If the sparse
+`deps/zapee` checkout is absent, it falls back to normal shallow
+`FetchContent(GIT_REPOSITORY/GIT_TAG)`, so installing `zap` is never required to
+build a ZapEE project. See `docs/PROJECT_INTEGRATION.md`.
 
 ## Standard CMake: FetchContent
 
@@ -76,7 +74,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.4.1
+    GIT_TAG        v0.5.0
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(zapee)

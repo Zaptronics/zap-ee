@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-add_subdirectory(sx1509)
-add_subdirectory(pac195x)
-add_subdirectory(emc2303)
-add_subdirectory(ad7124)
-add_subdirectory(thermocouple)
+foreach(_zapee_driver sx1509 pac195x emc2303 ad7124 thermocouple)
+    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${_zapee_driver}/CMakeLists.txt")
+        add_subdirectory(${_zapee_driver})
+    endif()
+endforeach()
