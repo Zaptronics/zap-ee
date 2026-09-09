@@ -1,5 +1,10 @@
 # ZTM_STEPPER portability plan
 
+Current status (2026-09-10): the extraction below is implemented in the working
+tree, including framed SPI, L6470 codecs, explicit instances, Hub/Pico transport
+support and host tests. Hub builds against the local package. Hardware regression
+and release tagging remain outstanding. The remainder records the original plan.
+
 This is the pre-extraction design for the Hub's current ZTM_STEPPER/L6470 code.
 No production ZTM_STEPPER source is moved into ZapEE in 0.4.1; the purpose of
 this document is to lock down the transport boundary before changing working

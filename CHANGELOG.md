@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 - 2026-09-10
+
+- Extract explicit-instance stepper, HV PSU and TEC PSU modules and L6470,
+  AD5282 and MCP4901 drivers from Hub.
+- Add sequence-owned framed SPI for L6470 chain traffic, Pico support, and host tests.
+- Complete Zap package component metadata for the new modules and drivers.
+- Validate the local integration with Hub; hardware regression remains pending.
+
 ## 0.5.0 - native Zap tooling and sparse package metadata
 
 - Add root `zap-package.yml` metadata describing CMake components, transitive component dependencies, platform-adapter mappings, and sparse source paths.

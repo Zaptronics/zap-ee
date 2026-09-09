@@ -1,0 +1,3 @@
+#include <assert.h>
+#include "zaptronics/drivers/l6470.h"
+int main(void){uint8_t b[5]={0};l6470_encode_run(true,0x12345,b);assert(b[0]==0x51&&b[1]==0x01&&b[2]==0x23&&b[3]==0x45);l6470_encode_move(false,0x654321,b);assert(b[0]==0x40&&b[1]==0x3f&&b[2]==0xff&&b[3]==0xff);assert(l6470_encode_set_param(L6470_REG_ACC,0x1234,2,b)==3);assert(b[0]==L6470_REG_ACC&&b[1]==0x12&&b[2]==0x34);assert(l6470_speed_from_steps_per_s(200.0f)==13422u);assert(l6470_acc_from_sps2(25.0f)==3u);assert(l6470_max_speed_from_steps_per_s(500.0f)==33u);assert(l6470_status_has_stall(0u));assert(!l6470_status_has_stall(L6470_STATUS_STALL_MASK));assert(l6470_status_has_thermal_warning(0u));assert(l6470_status_has_thermal_shutdown(0u));return 0;}

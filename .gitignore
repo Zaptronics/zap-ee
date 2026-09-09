@@ -1,7 +1,10 @@
 /build/
+/build-review/
 /out/
 /.cache/
 CMakeUserPresets.json
 .DS_Store
 Thumbs.db
 *.patch
+/schematics/
+*.kicad_sch

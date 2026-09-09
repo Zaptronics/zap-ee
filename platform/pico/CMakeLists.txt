@@ -6,6 +6,7 @@ zaptronics_add_component(
     PUBLIC_DEPS
         zap::i2c
         zap::spi
+        zap::spi_framed
         hardware_i2c
         hardware_spi
         pico_sync

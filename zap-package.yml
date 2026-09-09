@@ -27,6 +27,14 @@ components:
     paths:
       - platform
 
+  zap::spi_framed:
+    kind: transport
+    description: Portable framed SPI abstraction with sequence-level ownership and CS pulse per frame
+    depends:
+      - zap::spi
+    paths:
+      - platform
+
   zap::sx1509:
     kind: driver
     description: Semtech SX1509 GPIO/PWM expander driver
@@ -65,6 +73,46 @@ components:
     paths:
       - drivers/thermocouple
 
+  zap::ad5282:
+    kind: driver
+    description: Analog Devices AD5282 dual digital potentiometer
+    depends:
+      - zap::i2c
+    paths:
+      - drivers/ad5282
+
+  zap::mcp4901:
+    kind: driver
+    description: Microchip MCP4901 DAC
+    depends:
+      - zap::spi
+    paths:
+      - drivers/mcp4901
+
+  zap::ztm_psu_hv:
+    kind: module
+    description: Zaptronics high voltage PSU
+    depends:
+      - zap::ad5282
+      - zap::i2c
+    paths:
+      - modules/ztm_psu_hv
+
+  zap::ztm_psu_tec:
+    kind: module
+    description: Zaptronics thermoelectric cooler PSU
+    depends:
+      - zap::mcp4901
+      - zap::spi
+    paths:
+      - modules/ztm_psu_tec
+
+  zap::l6470:
+    kind: driver
+    description: ST L6470 stepper driver protocol codecs and conversion helpers
+    paths:
+      - drivers/l6470
+
   zap::ztm_pwm:
     kind: module
     description: Zaptronics ZTM_PWM module
@@ -88,12 +136,22 @@ components:
     paths:
       - modules/ztm_adc
 
+  zap::ztm_stepper:
+    kind: module
+    description: Zaptronics ZTM_STEPPER four-L6470 module
+    depends:
+      - zap::l6470
+      - zap::spi_framed
+    paths:
+      - modules/ztm_stepper
+
   zap::pico:
     kind: platform
     description: Raspberry Pi Pico SDK transport/time/locking adapters
     depends:
       - zap::i2c
       - zap::spi
+      - zap::spi_framed
     paths:
       - platform
 

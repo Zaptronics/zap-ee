@@ -287,6 +287,88 @@ const zap_spi_device_t *zap_pico_spi_device(const zap_pico_spi_device_t *adapter
     return adapter != NULL ? &adapter->device : NULL;
 }
 
+
+static int pico_framed_begin(void *context, uint32_t timeout_us)
+{
+    zap_pico_spi_framed_device_t *adapter = (zap_pico_spi_framed_device_t *)context;
+    if (adapter == NULL || adapter->bus == NULL || adapter->bus->instance == NULL || adapter->active) {
+        return ZAP_SPI_E_STATE;
+    }
+    if (adapter->bus->mutex_enabled && !mutex_enter_timeout_us(&adapter->bus->mutex, timeout_us)) {
+        return ZAP_SPI_E_LOCK;
+    }
+    spi_set_baudrate(adapter->bus->instance, adapter->config.baud_hz);
+    spi_set_format(adapter->bus->instance, adapter->config.data_bits,
+                   adapter->config.cpol, adapter->config.cpha, adapter->config.order);
+    adapter->active = true;
+    return ZAP_SPI_OK;
+}
+
+static int pico_framed_frame(void *context, const uint8_t *tx, uint8_t *rx, size_t len,
+                             uint8_t read_fill, uint32_t timeout_us)
+{
+    (void)timeout_us;
+    zap_pico_spi_framed_device_t *adapter = (zap_pico_spi_framed_device_t *)context;
+    if (adapter == NULL || adapter->bus == NULL || !adapter->active || len == 0u ||
+        len > (size_t)INT_MAX || (tx == NULL && rx == NULL)) {
+        return ZAP_SPI_E_BAD_ARG;
+    }
+    gpio_put((uint)adapter->cs_gpio, 0);
+    if (adapter->config.cs_setup_us != 0u) busy_wait_us_32(adapter->config.cs_setup_us);
+    int rc;
+    if (tx != NULL && rx != NULL) rc = spi_write_read_blocking(adapter->bus->instance, tx, rx, len);
+    else if (tx != NULL) rc = spi_write_blocking(adapter->bus->instance, tx, len);
+    else rc = spi_read_blocking(adapter->bus->instance, read_fill, rx, len);
+    if (adapter->config.cs_hold_us != 0u) busy_wait_us_32(adapter->config.cs_hold_us);
+    gpio_put((uint)adapter->cs_gpio, 1);
+    if (adapter->config.cs_high_us != 0u) busy_wait_us_32(adapter->config.cs_high_us);
+    return rc == (int)len ? ZAP_SPI_OK : ZAP_SPI_E_IO;
+}
+
+static int pico_framed_end(void *context)
+{
+    zap_pico_spi_framed_device_t *adapter = (zap_pico_spi_framed_device_t *)context;
+    if (adapter == NULL || adapter->bus == NULL || !adapter->active) return ZAP_SPI_E_STATE;
+    adapter->active = false;
+    if (adapter->bus->mutex_enabled) mutex_exit(&adapter->bus->mutex);
+    return ZAP_SPI_OK;
+}
+
+static const zap_spi_framed_device_ops_t g_pico_framed_spi_ops = {
+    .sequence_begin = pico_framed_begin,
+    .frame = pico_framed_frame,
+    .sequence_end = pico_framed_end,
+};
+
+int zap_pico_spi_framed_device_init(zap_pico_spi_framed_device_t *adapter,
+                                    zap_pico_spi_bus_t *bus,
+                                    uint32_t cs_gpio,
+                                    const zap_pico_spi_config_t *config,
+                                    uint32_t timeout_us,
+                                    uint8_t read_fill)
+{
+    if (adapter == NULL || bus == NULL || bus->instance == NULL || config == NULL ||
+        cs_gpio >= NUM_BANK0_GPIOS || config->baud_hz == 0u ||
+        config->data_bits < 4u || config->data_bits > 16u) return ZAP_SPI_E_BAD_ARG;
+    adapter->bus = bus;
+    adapter->cs_gpio = cs_gpio;
+    adapter->config = *config;
+    adapter->active = false;
+    gpio_init((uint)cs_gpio);
+    gpio_set_dir((uint)cs_gpio, GPIO_OUT);
+    gpio_put((uint)cs_gpio, 1);
+    adapter->device.context = adapter;
+    adapter->device.ops = &g_pico_framed_spi_ops;
+    adapter->device.timeout_us = timeout_us;
+    adapter->device.read_fill = read_fill;
+    return ZAP_SPI_OK;
+}
+
+const zap_spi_framed_device_t *zap_pico_spi_framed_device(const zap_pico_spi_framed_device_t *adapter)
+{
+    return adapter != NULL ? &adapter->device : NULL;
+}
+
 static void pico_delay_ms(void *context, uint32_t delay_ms)
 {
     (void)context;

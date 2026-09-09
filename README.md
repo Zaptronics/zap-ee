@@ -74,7 +74,7 @@ include(FetchContent)
 FetchContent_Declare(
     zapee
     GIT_REPOSITORY https://github.com/Zaptronics/zap-ee.git
-    GIT_TAG        v0.5.0
+    GIT_TAG        v0.6.0
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(zapee)

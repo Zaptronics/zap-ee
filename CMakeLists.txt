@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     ZapEE
-    VERSION 0.5.0
+    VERSION 0.6.0
     DESCRIPTION "Zaptronics Embedded Electronics Library"
     LANGUAGES C
 )

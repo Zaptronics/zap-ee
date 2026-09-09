@@ -7,6 +7,7 @@
 #include "hardware/spi.h"
 #include "pico/sync.h"
 #include "zaptronics/platform/spi.h"
+#include "zaptronics/platform/framed_spi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,14 @@ typedef struct {
     bool active;
 } zap_pico_spi_device_t;
 
+typedef struct {
+    zap_pico_spi_bus_t *bus;
+    uint32_t cs_gpio;
+    zap_pico_spi_config_t config;
+    zap_spi_framed_device_t device;
+    bool active;
+} zap_pico_spi_framed_device_t;
+
 /* The application owns spi_init() and SCK/MOSI/MISO pin mux configuration. */
 int zap_pico_spi_bus_init(zap_pico_spi_bus_t *bus,
                           spi_inst_t *instance,
@@ -51,6 +60,14 @@ int zap_pico_spi_device_init(zap_pico_spi_device_t *adapter,
                              uint8_t read_fill);
 
 const zap_spi_device_t *zap_pico_spi_device(const zap_pico_spi_device_t *adapter);
+
+int zap_pico_spi_framed_device_init(zap_pico_spi_framed_device_t *adapter,
+                                    zap_pico_spi_bus_t *bus,
+                                    uint32_t cs_gpio,
+                                    const zap_pico_spi_config_t *config,
+                                    uint32_t timeout_us,
+                                    uint8_t read_fill);
+const zap_spi_framed_device_t *zap_pico_spi_framed_device(const zap_pico_spi_framed_device_t *adapter);
 
 #ifdef __cplusplus
 }
