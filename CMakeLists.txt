@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     ZapEE
-    VERSION 0.6.0
+    VERSION 0.13.1
     DESCRIPTION "Zaptronics Embedded Electronics Library"
     LANGUAGES C
 )
@@ -52,7 +52,7 @@ configure_file(
 # installation validate/package the complete released library set.
 # Component directories may be absent in a zap-managed sparse checkout.
 # Full source checkouts still see and build the complete component set.
-foreach(_zapee_dir platform drivers modules)
+foreach(_zapee_dir platform drivers modules services boards)
     if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${_zapee_dir}/CMakeLists.txt")
         if(ZAPEE_IS_TOP_LEVEL)
             add_subdirectory(${_zapee_dir})

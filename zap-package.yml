@@ -199,3 +199,101 @@ components:
       - zap::ztm_adc
     paths:
       - platform
+
+  zap::pcal6416:
+    kind: driver
+    description: Portable PCAL6416A GPIO expander
+    depends:
+      - zap::i2c
+    paths:
+      - drivers/pcal6416
+
+  zap::tla2518:
+    kind: driver
+    description: Portable TLA2518 ADC with framed SPI
+    depends:
+      - zap::spi_framed
+    paths:
+      - drivers/tla2518
+
+  zap::pico_ztpico2:
+    kind: board
+    description: ZTPICO2 motherboard support for Pico SDK
+    depends:
+      - zap::pcal6416
+      - zap::tla2518
+      - zap::i2c
+      - zap::spi
+      - zap::spi_framed
+    paths:
+      - boards
+
+  zap::registry:
+    kind: service
+    description: Explicit module registry and lifecycle
+    paths:
+      - services/registry
+
+  zap::cli:
+    kind: service
+    description: Portable command tokenization and argument parsing
+    paths:
+      - services/cli
+
+  zap::log:
+    kind: service
+    description: Portable formatted logging with configurable submission
+    paths:
+      - services/log
+
+  zap::pico_log:
+    kind: service
+    description: Pico queued logging with an application output sink
+    depends:
+      - zap::log
+    paths:
+      - services/pico
+
+  zap::pico_network:
+    kind: service
+    description: Optional Pico WiFi CLI and HTTP services
+    depends:
+      - zap::log
+    paths:
+      - services/pico_network
+
+  zap::pico_ztpico2_ztm_psu_tec:
+    kind: adapter
+    description: ZTPICO2 binding for caller-owned ZTM_PSU_TEC instances
+    depends:
+      - zap::pico_ztpico2
+      - zap::ztm_psu_tec
+    paths:
+      - boards
+
+  zap::pico_ztpico2_ztm_pwm:
+    kind: adapter
+    description: ZTPICO2 binding for caller-owned ZTM_PWM instances
+    depends:
+      - zap::pico_ztpico2
+      - zap::ztm_pwm
+    paths:
+      - boards
+
+  zap::pico_ztpico2_ztm_adc:
+    kind: adapter
+    description: ZTPICO2 SPI and operation-lock binding for ZTM_ADC
+    depends:
+      - zap::pico_ztpico2
+      - zap::ztm_adc
+    paths:
+      - boards
+
+  zap::pico_ztpico2_ztm_stepper:
+    kind: adapter
+    description: ZTPICO2 Framed SPI, operation-lock and power binding for ZTM_STEPPER
+    depends:
+      - zap::pico_ztpico2
+      - zap::ztm_stepper
+    paths:
+      - boards

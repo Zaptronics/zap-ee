@@ -30,6 +30,7 @@ extern "C" {
 #define ZTM_ADC_AIN_RTD_RETURN          15u
 
 #define ZTM_ADC_RTD_R0_OHMS           1000.0
+#define ZTM_ADC_EXTERNAL_RTD_SERIES_OHMS 100.0
 #define ZTM_ADC_RREF_OHMS             2000.0
 #define ZTM_ADC_INTERNAL_REF_VOLTS       2.5
 #define ZTM_ADC_RTD_EXCITATION        AD7124_IOUT_500UA

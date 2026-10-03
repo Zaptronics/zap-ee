@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-#define ZTM_PSU_HV_VSENSE_CHANNEL             1u
-#define ZTM_PSU_HV_DIVIDER_RATIO_THOUSANDS    7500u
 #define ZTM_PSU_HV_DEFAULT_PGOOD_TIMEOUT_MS    300u
 
 /* Guarded range established by the assembled-board sweep on 2026-07-22. */

@@ -1,5 +1,112 @@
 # Changelog
 
+## 0.13.1
+
+- Echo accepted line-mode characters, erase on backspace/delete, and emit a newline before executing a line.
+- Keep raw-key screen input un-echoed; preserve CRLF/CR-NUL framing.
+- Update version fixture without running it.
+- Validation not run: no builds, tests or rollback application.
+
+
+## 0.13.0
+
+- Add optional TCP console key, refresh and disconnect callbacks with raw-mode prompt suppression.
+- Preserve Telnet decoding and entry CRLF framing; prevent HTTP from opening TCP screens.
+- Expose output-idle backpressure and update the version fixture.
+- Validation not run: no builds, tests or rollback application.
+
+
+## 0.12.3
+
+- Return failure from ztm_pwm_stop_all when the module is unavailable instead of skipping writes and reporting success.
+- Preserve independent attempts to stop low-side and fan outputs when operational; propagate either failure.
+- Document that zero-duty writes do not verify physical fan standstill; update the existing version fixture without running it.
+- Validation not run: no builds, tests, or rollback application; hardware testing remains with the user.
+
+## 0.12.2
+
+- Subtract nominal 100 ohm protection resistance from external ZTM_ADC RTD1-RTD8 before reporting resistance and calculating temperature.
+- Preserve CJC conversion, raw codes, and disconnected-input detection.
+- Update the version fixture without running it.
+- Validation not run: no builds, tests, or rollback application; hardware regression skipped.
+
+## 0.12.1
+
+- Correct SX1509 PWM duty to active-low sink time: 0% released, 100% sinking.
+- With ZTM_PWM MCP1415 drivers, logical 0% now means load OFF, including startup and stop.
+- Keep each SX1509 pin as an input while loading the latch and LED registers; enable output afterward.
+- Clarify the public PWM duty contract and update the existing version fixture.
+- Validation not run: no builds, tests, or rollback application; hardware retest remains with the user.
+
+## 0.12.0
+
+- Correct ZTM_PWM PAC1 address from 0x1F to 0x10 for R10 = 0 ohms to ground.
+- Require POWER_SAFE feedback before PWM initialization, probing, and scanning.
+- Configure ZTPICO2 TLA2518 GPIO0 (physical pin 15) as digital input under the ADC lock.
+- Latch and report power-safe faults, disable enable, and block normal operations until reinitialization.
+- Update the version fixture without executing it.
+- Validation not run: builds and tests remain with the user.
+
+## 0.11.0
+
+- Add optional pico_ztpico2_ztm_stepper with caller-owned framed SPI, operation lock and power callback binding.
+- Preserve stepper SPI timing, timeouts and portable initialization; retain application events and wiring in the consumer.
+- Update the existing version fixture; no builds or tests were run.
+
+## 0.10.0
+
+- Add optional pico_ztpico2_ztm_adc with caller-owned SPI and operation-lock binding.
+- Preserve ADC mode 3, 1 MHz timing, timeouts and portable initialization.
+- Applications retain diagnostics and measurement assignments.
+- No builds or tests were run; hardware regression remains skipped.
+
+## 0.9.0
+
+- Add optional pico_ztpico2_ztm_pwm with caller-owned I2C and connector bindings.
+- Applications select IRQ wiring/polarity and event callbacks; no Hub dependency.
+- Preserve Hub's bus defaults and connector preparation before module init.
+- No builds or tests were run; hardware regression remains skipped.
+
+## 0.8.0
+
+- Add the optional pico_ztpico2_ztm_psu_tec component with caller-owned module bindings.
+- Extract TEC SPI, lock and connector setup from Hub without application inventory or policy.
+- Preserve the existing TEC timing and enable-off initialization sequence.
+- Building and testing were not run; hardware regression remains skipped.
+
+## 0.7.4
+
+- Add standalone VS Code Pico SDK include configuration for ZapEE.
+- Select application-generated SDK headers and compile commands using ZAPEE_PICO_BUILD_DIR, without a fixed Hub dependency.
+- No build, tests, or editor validation were run.
+
+## 0.7.3
+
+- Make cs_mux.h self-contained by moving GPIO, board-pin and integer-width includes into cs_mux.c.
+- Existing consumers include their board pin definitions independently.
+- Building and testing were not run; validation remains with the user.
+
+## 0.7.2
+
+- Expose ZAPEE_PICO_NETWORK_CONFIG_DIR for application-owned lwIP configuration.
+- Document direct CMake consumption and the independent library boundary.
+- Building and testing remain with the user; validation was not run.
+
+## 0.7.1 - Pico network SDK dependency
+
+- Link pico_stdlib directly for the extracted network component's SDK headers and sleep_ms calls.
+- Remove the unused pico/bootrom.h include.
+- Update the version fixture; no builds or tests were run by the assistant.
+
+## 0.7.0 - ZTPICO2 board and shared service extraction
+
+- Extract portable PCAL6416 and TLA2518 drivers, with explicit transports.
+- Add optional Pico ZTPICO2 motherboard support and connector controls.
+- Extract registry, command parsing, logging and configurable Pico network services.
+- Add user-run driver/registry fixtures; no builds or tests were run for this change.
+- Hardware regression is skipped by user instruction.
+
+
 ## 0.6.0 - 2026-09-10
 
 - Extract explicit-instance stepper, HV PSU and TEC PSU modules and L6470,

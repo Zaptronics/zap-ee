@@ -294,6 +294,10 @@ static bool ztm_adc_measure_rtd_unlocked(ztm_adc_t *module,
     double resistance = ztm_adc_rtd_resistance_from_code(
         code,
         module->reference_resistor_ohms);
+    /* Index 0 is the onboard CJC; compensate only external RTD1-RTD8. */
+    if (logical_index >= 1u && logical_index <= ZTM_ADC_RTD_COUNT) {
+        resistance -= ZTM_ADC_EXTERNAL_RTD_SERIES_OHMS;
+    }
     module->last_measurement.resistance_ohms = resistance;
     sample->resistance_ohms = resistance;
     if (!ztm_adc_pt1000_temperature(resistance, &sample->temperature_c)) {

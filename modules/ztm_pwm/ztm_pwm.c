@@ -77,6 +77,7 @@ const char *ztm_pwm_init_stage_name(ztm_pwm_init_stage_t stage)
 {
     switch (stage) {
         case ZTM_PWM_INIT_POWER_OFF: return "power off";
+        case ZTM_PWM_INIT_POWER_SAFE: return "POWER_SAFE";
         case ZTM_PWM_INIT_POWER_ON: return "power on";
         case ZTM_PWM_INIT_SX1509: return "SX1509";
         case ZTM_PWM_INIT_LOW_SIDE_OUTPUTS: return "low-side outputs";
@@ -165,9 +166,14 @@ static ztm_pwm_pac_topology_t pac_topology_from_identity(uint8_t product_id,
     return ZTM_PWM_PAC_TOPOLOGY_UNSUPPORTED;
 }
 
+static int check_power_safe(ztm_pwm_t *device);
+
 static int pwm_init_failed(ztm_pwm_t *device, ztm_pwm_init_stage_t stage, int rc)
 {
     if (device != NULL) {
+        /* Distinguish reset/power loss during a failed device transaction. */
+        if (stage != ZTM_PWM_INIT_POWER_OFF && stage != ZTM_PWM_INIT_POWER_ON &&
+            check_power_safe(device) != 0) return device->power_safe_rc;
         device->ready = false;
         device->last_init_stage = stage;
         device->last_init_rc = rc;
@@ -180,6 +186,65 @@ static bool module_set_enable(ztm_pwm_t *device, bool enabled)
 {
     return device != NULL && device->config.power_set != NULL &&
            device->config.power_set(device->config.control_context, enabled) == 0;
+}
+
+/* POWER_SAFE is independent of enable and module IRQ. Never infer it from either. */
+static int power_safe_fault(ztm_pwm_t *device, int rc)
+{
+    const bool first = device->power_safe_rc == 0;
+    device->power_safe_rc = rc;
+    device->ready = false;
+    device->last_init_stage = ZTM_PWM_INIT_POWER_SAFE;
+    device->last_init_rc = rc;
+    (void)module_set_enable(device, false);
+    if (first && device->config.event != NULL) {
+        const ztm_pwm_event_t event = {
+            .type = ZTM_PWM_EVENT_POWER_SAFE_ERROR,
+            .detail = (uint32_t)(-rc),
+        };
+        device->config.event(device->config.event_context, &event);
+    }
+    return rc;
+}
+
+static int check_power_safe(ztm_pwm_t *device)
+{
+    if (device == NULL) return ZTM_PWM_ERR_POWER_SAFE_READ;
+    if (device->power_safe_rc != 0) return device->power_safe_rc;
+    bool high = false;
+    if (device->config.power_safe_read == NULL ||
+        device->config.power_safe_read(device->config.control_context, &high) != 0)
+        return power_safe_fault(device, ZTM_PWM_ERR_POWER_SAFE_READ);
+    return high ? 0 : power_safe_fault(device, ZTM_PWM_ERR_POWER_SAFE_LOW);
+}
+
+static int wait_power_safe(ztm_pwm_t *device)
+{
+    device->power_safe_rc = 0;
+    if (!zap_time_valid(device->config.time) || device->config.power_safe_read == NULL)
+        return power_safe_fault(device, ZTM_PWM_ERR_POWER_SAFE_READ);
+    const uint32_t timeout = device->config.power_safe_timeout_ms != 0 ?
+        device->config.power_safe_timeout_ms : ZTM_PWM_POWER_SAFE_TIMEOUT_MS;
+    const uint64_t start = zap_time_now_us(device->config.time);
+    uint32_t waited = 0;
+    for (;;) {
+        bool high = false;
+        if (device->config.power_safe_read(device->config.control_context, &high) != 0)
+            return power_safe_fault(device, ZTM_PWM_ERR_POWER_SAFE_READ);
+        if (high) return 0;
+        if ((device->config.time->now_us != NULL &&
+             (zap_time_now_us(device->config.time) - start) / 1000u >= timeout) ||
+            waited >= timeout)
+            return power_safe_fault(device, ZTM_PWM_ERR_POWER_SAFE_TIMEOUT);
+        uint32_t delay = timeout - waited < 5u ? timeout - waited : 5u;
+        zap_delay_ms(device->config.time, delay);
+        waited += delay;
+    }
+}
+
+bool ztm_pwm_operational(ztm_pwm_t *device)
+{
+    return device != NULL && device->ready && check_power_safe(device) == 0;
 }
 
 static int init_current_monitor(pac195x_t *monitor,
@@ -255,8 +320,11 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
     if (!module_set_enable(device, true)) {
         return pwm_init_failed(device, ZTM_PWM_INIT_POWER_ON, -4);
     }
-    zap_delay_ms(device->config.time, 10u);
+    device->last_init_stage = ZTM_PWM_INIT_POWER_SAFE;
+    int power_rc = wait_power_safe(device);
+    if (power_rc != 0) return power_rc;
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_SX1509;
     int rc = sx1509_init(&device->output_mux,
                          device->config.i2c,
@@ -266,6 +334,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         return pwm_init_failed(device, ZTM_PWM_INIT_SX1509, -10);
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_LOW_SIDE_OUTPUTS;
     for (uint8_t channel = 1u; channel <= ZTM_PWM_CHANNEL_COUNT; channel++) {
         if (!channel_start_at_zero(device, channel)) {
@@ -273,6 +342,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         }
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_USER_GPIOS;
     for (uint8_t gpio = 1u; gpio <= ZTM_PWM_GPIO_COUNT; gpio++) {
         uint8_t pin = g_gpio_to_sx_pin[gpio - 1u];
@@ -290,6 +360,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
     };
 
     for (size_t index = 0; index < ZTM_PWM_PAC_COUNT; index++) {
+        if (check_power_safe(device) != 0) return device->power_safe_rc;
         device->last_init_stage = pac_stages[index];
         rc = init_current_monitor(&device->current_monitor[index],
                                   device->config.i2c,
@@ -300,6 +371,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         device->current_monitor_ready[index] = rc == PAC195X_OK;
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_EMC1;
     rc = emc2303_init(&device->fan_controller[0],
                       device->config.i2c,
@@ -309,6 +381,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         return pwm_init_failed(device, ZTM_PWM_INIT_EMC1, -30);
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_EMC2;
     rc = emc2303_init(&device->fan_controller[1],
                       device->config.i2c,
@@ -318,6 +391,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         return pwm_init_failed(device, ZTM_PWM_INIT_EMC2, -31);
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_FAN_SAFE_STATE;
     for (uint8_t fan = 1u; fan <= ZTM_PWM_FAN_COUNT; fan++) {
         fan_route_t route = g_fan_route[fan - 1u];
@@ -328,6 +402,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         }
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_FAN_OUTPUT_CONFIG;
     for (uint8_t fan = 1u; fan <= ZTM_PWM_FAN_COUNT; fan++) {
         ztm_pwm_fan_output_mode_t mode =
@@ -339,12 +414,14 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         }
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_FAN_INTERRUPTS;
     if (emc2303_reg_write8(&device->fan_controller[0], EMC2303_REG_FAN_INT_ENABLE, 0x07u) != EMC2303_OK ||
         emc2303_reg_write8(&device->fan_controller[1], EMC2303_REG_FAN_INT_ENABLE, 0x07u) != EMC2303_OK) {
         return pwm_init_failed(device, ZTM_PWM_INIT_FAN_INTERRUPTS, -34);
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->last_init_stage = ZTM_PWM_INIT_CLEAR_STATUS;
     uint8_t unused = 0u;
     (void)emc2303_read_status(&device->fan_controller[0], &unused, NULL, NULL, NULL);
@@ -360,6 +437,7 @@ int ztm_pwm_init(ztm_pwm_t *device, const ztm_pwm_config_t *config)
         (void)sx1509_interrupt_clear_source(&device->output_mux, sx_source);
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     device->ready = true;
     device->last_init_stage = ZTM_PWM_INIT_READY;
     device->last_init_rc = 0;
@@ -391,11 +469,13 @@ int ztm_pwm_probe_devices(ztm_pwm_t *device,
                           ztm_pwm_probe_result_t *result,
                           bool ensure_power_on)
 {
+    if (result == NULL) return -1;
+    memset(result, 0, sizeof(*result));
+    result->power_safe_rc = ZTM_PWM_ERR_POWER_SAFE_READ;
     if (device == NULL || result == NULL || !zap_i2c_bus_valid(device->config.i2c)) {
         return -1;
     }
 
-    memset(result, 0, sizeof(*result));
     bool original_enable = false;
     bool original_enable_valid = ztm_pwm_read_enable(device, &original_enable);
     result->power_was_enabled = original_enable_valid && original_enable;
@@ -407,8 +487,10 @@ int ztm_pwm_probe_devices(ztm_pwm_t *device,
             return -3;
         }
         result->power_temporarily_enabled = true;
-        zap_delay_ms(device->config.time, 10u);
     }
+
+    result->power_safe_rc = device->ready ? check_power_safe(device) : wait_power_safe(device);
+    if (result->power_safe_rc != 0) goto power_cleanup;
 
     result->enable_read_ok = ztm_pwm_read_enable(device, &result->enable_high);
     result->irq_read_ok = ztm_pwm_read_irq_asserted(device, &result->irq_asserted);
@@ -426,6 +508,7 @@ int ztm_pwm_probe_devices(ztm_pwm_t *device,
         ZTM_PWM_PAC1_ADDR, ZTM_PWM_PAC2_ADDR, ZTM_PWM_PAC3_ADDR
     };
     for (size_t index = 0; index < ZTM_PWM_PAC_COUNT; index++) {
+        if ((result->power_safe_rc = check_power_safe(device)) != 0) goto power_cleanup;
         pac195x_t pac = {0};
         if (zap_i2c_device_init(&pac.i2c, device->config.i2c, pac_addresses[index]) != ZAP_I2C_OK) {
             continue;
@@ -452,6 +535,7 @@ int ztm_pwm_probe_devices(ztm_pwm_t *device,
         ZTM_PWM_EMC1_ADDR, ZTM_PWM_EMC2_ADDR
     };
     for (size_t index = 0; index < ZTM_PWM_EMC_COUNT; index++) {
+        if ((result->power_safe_rc = check_power_safe(device)) != 0) goto power_cleanup;
         emc2303_t emc = {0};
         if (zap_i2c_device_init(&emc.i2c, device->config.i2c, emc_addresses[index]) != ZAP_I2C_OK) {
             continue;
@@ -466,6 +550,8 @@ int ztm_pwm_probe_devices(ztm_pwm_t *device,
         }
     }
 
+    result->power_safe_rc = check_power_safe(device);
+power_cleanup:
     if (result->power_temporarily_enabled) {
         result->power_restored_off = module_set_enable(device, false);
         if (!result->power_restored_off) {
@@ -474,6 +560,7 @@ int ztm_pwm_probe_devices(ztm_pwm_t *device,
         }
     }
 
+    if (result->power_safe_rc != 0) return result->power_safe_rc;
     return result->devices_found == 6u ? 0 : -(int)(6u - result->devices_found);
 }
 
@@ -481,6 +568,9 @@ int ztm_pwm_i2c_scan(ztm_pwm_t *device,
                      ztm_pwm_i2c_scan_result_t *result,
                      bool ensure_power_on)
 {
+    if (result == NULL) return -1;
+    memset(result, 0, sizeof(*result));
+    result->power_safe_rc = ZTM_PWM_ERR_POWER_SAFE_READ;
     if (device == NULL || result == NULL || !zap_i2c_bus_valid(device->config.i2c)) {
         return -1;
     }
@@ -488,7 +578,6 @@ int ztm_pwm_i2c_scan(ztm_pwm_t *device,
         return ZAP_I2C_E_UNSUPPORTED;
     }
 
-    memset(result, 0, sizeof(*result));
     bool original_enable = false;
     bool original_enable_valid = ztm_pwm_read_enable(device, &original_enable);
     result->power_was_enabled = original_enable_valid && original_enable;
@@ -500,10 +589,13 @@ int ztm_pwm_i2c_scan(ztm_pwm_t *device,
             return -3;
         }
         result->power_temporarily_enabled = true;
-        zap_delay_ms(device->config.time, 10u);
     }
 
+    result->power_safe_rc = device->ready ? check_power_safe(device) : wait_power_safe(device);
+    if (result->power_safe_rc != 0) goto power_cleanup;
+
     for (uint8_t address = 0x08u; address <= 0x77u; address++) {
+        if ((result->power_safe_rc = check_power_safe(device)) != 0) goto power_cleanup;
         zap_i2c_device_t probe = {0};
         if (zap_i2c_device_init(&probe, device->config.i2c, address) == ZAP_I2C_OK &&
             zap_i2c_probe(&probe) == ZAP_I2C_OK) {
@@ -512,6 +604,8 @@ int ztm_pwm_i2c_scan(ztm_pwm_t *device,
         }
     }
 
+    result->power_safe_rc = check_power_safe(device);
+power_cleanup:
     if (result->power_temporarily_enabled) {
         result->power_restored_off = module_set_enable(device, false);
         if (!result->power_restored_off) {
@@ -520,6 +614,7 @@ int ztm_pwm_i2c_scan(ztm_pwm_t *device,
         }
     }
 
+    if (result->power_safe_rc != 0) return result->power_safe_rc;
     return (int)result->devices_found;
 }
 
@@ -531,6 +626,7 @@ bool ztm_pwm_power_off(ztm_pwm_t *device)
     bool stopped = !device->ready || ztm_pwm_stop_all(device);
     bool disabled = module_set_enable(device, false);
     device->ready = false;
+    if (disabled) device->power_safe_rc = 0;
     return stopped && disabled;
 }
 
@@ -609,7 +705,7 @@ bool ztm_pwm_channel_get_current_route(const ztm_pwm_t *device,
 
 bool ztm_pwm_channel_set(ztm_pwm_t *device, uint8_t channel_1based, uint8_t duty_pct)
 {
-    if (!device->ready || !valid_channel(channel_1based) || duty_pct > 100u) {
+    if (!ztm_pwm_operational(device) || !valid_channel(channel_1based) || duty_pct > 100u) {
         return false;
     }
 
@@ -624,7 +720,7 @@ bool ztm_pwm_channel_set(ztm_pwm_t *device, uint8_t channel_1based, uint8_t duty
 
 bool ztm_pwm_channel_set_all(ztm_pwm_t *device, uint8_t duty_pct)
 {
-    if (!device->ready || duty_pct > 100u) {
+    if (!ztm_pwm_operational(device) || duty_pct > 100u) {
         return false;
     }
 
@@ -637,14 +733,16 @@ bool ztm_pwm_channel_set_all(ztm_pwm_t *device, uint8_t duty_pct)
 
 bool ztm_pwm_channel_stop(ztm_pwm_t *device, uint8_t channel_1based)
 {
-    /* Keep the LED/PWM engine enabled at 0%; disabling it releases the open-drain output high. */
+    /* Zero sink duty releases the MCP1415 input; its pull-up holds the MOSFET off. */
     return ztm_pwm_channel_set(device, channel_1based, 0u);
 }
 
 bool ztm_pwm_stop_all(ztm_pwm_t *device)
 {
-    bool outputs_ok = !device->ready || ztm_pwm_channel_set_all(device, 0u);
-    bool fans_ok = !device->ready || ztm_pwm_fan_stop_all(device);
+    /* An unavailable module cannot confirm zero-duty writes. */
+    if (!ztm_pwm_operational(device)) return false;
+    bool outputs_ok = ztm_pwm_channel_set_all(device, 0u);
+    bool fans_ok = ztm_pwm_fan_stop_all(device);
     return outputs_ok && fans_ok;
 }
 
@@ -658,7 +756,7 @@ bool ztm_pwm_read_channel(ztm_pwm_t *device,
                           bool averaged,
                           ztm_pwm_current_reading_t *reading)
 {
-    if (!device->ready || !valid_channel(channel_1based) || !reading) {
+    if (!ztm_pwm_operational(device) || !valid_channel(channel_1based) || !reading) {
         return false;
     }
 
@@ -720,7 +818,7 @@ bool ztm_pwm_read_current_uA(ztm_pwm_t *device, uint8_t channel_1based, bool ave
 
 bool ztm_pwm_read_all_currents_uA(ztm_pwm_t *device, bool averaged, int32_t current_uA[ZTM_PWM_CHANNEL_COUNT])
 {
-    if (!device->ready || !current_uA) {
+    if (!ztm_pwm_operational(device) || !current_uA) {
         return false;
     }
 
@@ -749,7 +847,7 @@ bool ztm_pwm_fan_get_route(uint8_t fan_1based,
 
 bool ztm_pwm_fan_set_raw(ztm_pwm_t *device, uint8_t fan_1based, uint8_t raw)
 {
-    if (!device->ready || !valid_fan(fan_1based)) {
+    if (!ztm_pwm_operational(device) || !valid_fan(fan_1based)) {
         return false;
     }
 
@@ -777,7 +875,7 @@ bool ztm_pwm_fan_set_open_loop(ztm_pwm_t *device, uint8_t fan_1based, uint8_t du
 
 bool ztm_pwm_fan_set_target_rpm(ztm_pwm_t *device, uint8_t fan_1based, uint32_t rpm)
 {
-    if (!device->ready || !valid_fan(fan_1based) || rpm == 0u) {
+    if (!ztm_pwm_operational(device) || !valid_fan(fan_1based) || rpm == 0u) {
         return false;
     }
     fan_route_t route = g_fan_route[fan_1based - 1u];
@@ -793,7 +891,7 @@ bool ztm_pwm_fan_set_target_rpm(ztm_pwm_t *device, uint8_t fan_1based, uint32_t 
 
 bool ztm_pwm_fan_set(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct)
 {
-    if (!device->ready || !valid_fan(fan_1based) || duty_pct > 100u) {
+    if (!ztm_pwm_operational(device) || !valid_fan(fan_1based) || duty_pct > 100u) {
         return false;
     }
 
@@ -815,7 +913,7 @@ bool ztm_pwm_fan_set(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct)
 
 bool ztm_pwm_fan_set_all(ztm_pwm_t *device, uint8_t duty_pct)
 {
-    if (!device->ready || duty_pct > 100u) {
+    if (!ztm_pwm_operational(device) || duty_pct > 100u) {
         return false;
     }
 
@@ -828,12 +926,12 @@ bool ztm_pwm_fan_set_all(ztm_pwm_t *device, uint8_t duty_pct)
 
 bool ztm_pwm_fan_set_output_mode(ztm_pwm_t *device, uint8_t fan_1based, ztm_pwm_fan_output_mode_t mode)
 {
-    return device->ready && fan_set_output_mode_hw(device, fan_1based, mode);
+    return ztm_pwm_operational(device) && fan_set_output_mode_hw(device, fan_1based, mode);
 }
 
 bool ztm_pwm_fan_set_output_mode_all(ztm_pwm_t *device, ztm_pwm_fan_output_mode_t mode)
 {
-    if (!device->ready ||
+    if (!ztm_pwm_operational(device) ||
         (mode != ZTM_PWM_FAN_OUTPUT_OPEN_DRAIN &&
          mode != ZTM_PWM_FAN_OUTPUT_PUSH_PULL)) {
         return false;
@@ -848,7 +946,7 @@ bool ztm_pwm_fan_set_output_mode_all(ztm_pwm_t *device, ztm_pwm_fan_output_mode_
 
 bool ztm_pwm_fan_get_output_mode(ztm_pwm_t *device, uint8_t fan_1based, ztm_pwm_fan_output_mode_t *mode)
 {
-    if (!device->ready || !valid_fan(fan_1based) || !mode) {
+    if (!ztm_pwm_operational(device) || !valid_fan(fan_1based) || !mode) {
         return false;
     }
 
@@ -894,7 +992,7 @@ ztm_pwm_fan_tach_status_t ztm_pwm_fan_get_tach_status(ztm_pwm_t *device,
                                                        uint16_t *tach_count,
                                                        uint32_t *rpm)
 {
-    if (!device->ready || !valid_fan(fan_1based) || !tach_count || !rpm) {
+    if (!ztm_pwm_operational(device) || !valid_fan(fan_1based) || !tach_count || !rpm) {
         return ZTM_PWM_FAN_TACH_READ_ERROR;
     }
 
@@ -926,7 +1024,7 @@ uint8_t ztm_pwm_fan_get_duty(const ztm_pwm_t *device, uint8_t fan_1based)
 
 bool ztm_pwm_gpio_configure_input(ztm_pwm_t *device, uint8_t gpio_1based, ztm_pwm_gpio_pull_t pull)
 {
-    if (!device->ready || !valid_gpio(gpio_1based)) {
+    if (!ztm_pwm_operational(device) || !valid_gpio(gpio_1based)) {
         return false;
     }
 
@@ -950,7 +1048,7 @@ bool ztm_pwm_gpio_configure_input(ztm_pwm_t *device, uint8_t gpio_1based, ztm_pw
 
 bool ztm_pwm_gpio_configure(ztm_pwm_t *device, uint8_t gpio_1based, ztm_pwm_gpio_mode_t mode)
 {
-    if (!device->ready || !valid_gpio(gpio_1based)) {
+    if (!ztm_pwm_operational(device) || !valid_gpio(gpio_1based)) {
         return false;
     }
 
@@ -977,7 +1075,7 @@ bool ztm_pwm_gpio_configure(ztm_pwm_t *device, uint8_t gpio_1based, ztm_pwm_gpio
 
 bool ztm_pwm_gpio_configure_irq(ztm_pwm_t *device, uint8_t gpio_1based, sx1509_sense_t sense)
 {
-    if (!device->ready || !valid_gpio(gpio_1based) ||
+    if (!ztm_pwm_operational(device) || !valid_gpio(gpio_1based) ||
         device->gpio_mode[gpio_1based - 1u] != ZTM_PWM_GPIO_INPUT ||
         sense > SX1509_SENSE_BOTH) {
         return false;
@@ -995,7 +1093,7 @@ bool ztm_pwm_gpio_configure_irq(ztm_pwm_t *device, uint8_t gpio_1based, sx1509_s
 
 bool ztm_pwm_gpio_toggle(ztm_pwm_t *device, uint8_t gpio_1based)
 {
-    if (!device->ready || !valid_gpio(gpio_1based) ||
+    if (!ztm_pwm_operational(device) || !valid_gpio(gpio_1based) ||
         device->gpio_mode[gpio_1based - 1u] != ZTM_PWM_GPIO_OUTPUT) {
         return false;
     }
@@ -1013,7 +1111,7 @@ bool ztm_pwm_gpio_toggle(ztm_pwm_t *device, uint8_t gpio_1based)
 
 bool ztm_pwm_gpio_write(ztm_pwm_t *device, uint8_t gpio_1based, bool level)
 {
-    if (!device->ready || !valid_gpio(gpio_1based) ||
+    if (!ztm_pwm_operational(device) || !valid_gpio(gpio_1based) ||
         device->gpio_mode[gpio_1based - 1u] != ZTM_PWM_GPIO_OUTPUT) {
         return false;
     }
@@ -1028,7 +1126,7 @@ bool ztm_pwm_gpio_write(ztm_pwm_t *device, uint8_t gpio_1based, bool level)
 
 bool ztm_pwm_gpio_read(ztm_pwm_t *device, uint8_t gpio_1based, bool *level)
 {
-    if (!device->ready || !valid_gpio(gpio_1based) || !level) {
+    if (!ztm_pwm_operational(device) || !valid_gpio(gpio_1based) || !level) {
         return false;
     }
 
@@ -1101,9 +1199,9 @@ static void emit_emc_status(ztm_pwm_t *device,
 
 int ztm_pwm_scan_irq_sources(ztm_pwm_t *device, bool force_scan)
 {
-    if (device == NULL || !device->ready) {
-        return -1;
-    }
+    if (device == NULL) return -1;
+    if (!ztm_pwm_operational(device))
+        return device->power_safe_rc != 0 ? device->power_safe_rc : -1;
 
     bool irq_asserted = false;
     if (!ztm_pwm_read_irq_asserted(device, &irq_asserted)) {
@@ -1137,6 +1235,7 @@ int ztm_pwm_scan_irq_sources(ztm_pwm_t *device, bool force_scan)
         if (!device->current_monitor_ready[pac]) {
             continue;
         }
+        if (check_power_safe(device) != 0) return device->power_safe_rc;
         uint32_t status = 0u;
         int rc = pac195x_read_alert_status(&device->current_monitor[pac], &status);
         if (rc != PAC195X_OK) {
@@ -1152,6 +1251,7 @@ int ztm_pwm_scan_irq_sources(ztm_pwm_t *device, bool force_scan)
     }
 
     for (size_t emc = 0; emc < ZTM_PWM_EMC_COUNT; emc++) {
+        if (check_power_safe(device) != 0) return device->power_safe_rc;
         uint8_t fan_status = 0u;
         uint8_t stall = 0u;
         uint8_t spin = 0u;
@@ -1175,6 +1275,7 @@ int ztm_pwm_scan_irq_sources(ztm_pwm_t *device, bool force_scan)
         device->irq_unresolved_reported = true;
     }
 
+    if (check_power_safe(device) != 0) return device->power_safe_rc;
     if (errors != 0) {
         device->irq_scan_errors += (uint32_t)errors;
         return -errors;
@@ -1185,6 +1286,8 @@ int ztm_pwm_scan_irq_sources(ztm_pwm_t *device, bool force_scan)
 int ztm_pwm_poll(ztm_pwm_t *device)
 {
     /* An intentional console power-off is not a periodic poll failure. */
+    if (device == NULL) return -1;
+    if (device->power_safe_rc != 0) return device->power_safe_rc;
     return device->ready ? ztm_pwm_scan_irq_sources(device, false) : 0;
 }
 

@@ -1,0 +1,5 @@
+if(TARGET hardware_spi AND TARGET hardware_i2c AND TARGET pico_sync)
+    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/ztpico2/CMakeLists.txt")
+        add_subdirectory(ztpico2)
+    endif()
+endif()

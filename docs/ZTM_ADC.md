@@ -157,3 +157,26 @@ The consuming application decides whether those become console logs, alarms,
 telemetry, RTOS messages, or are ignored. Event callbacks are synchronous and
 may be invoked while the module's operation lock is held; a callback must not
 re-enter the same `ztm_adc_t` instance. Queue/defer work if re-entry is required.
+
+## External RTD protection resistance (0.12.2)
+
+External RTD1-RTD8 subtract ZTM_ADC_EXTERNAL_RTD_SERIES_OHMS (100 ohms) after
+ratiometric ADC-code conversion and before Pt1000 temperature conversion.
+Sample resistance and last-measurement resistance both use the corrected value;
+raw_code is unchanged. Rail-code disconnected detection runs first. Corrected
+values outside the Pt1000 range retain OUT_OF_RANGE handling. The generic
+ztm_adc_rtd_resistance_from_code helper remains a pure ratio conversion.
+
+The onboard CJC (logical index 0) receives no subtraction, as agreed during
+bring-up. This is an empirical channel-specific correction, not a claim that
+the reported nominal CJC and external channel schematics differ.
+
+External CH11/AIN14 reported 1170.133 ohms while its disconnected sensor and cable
+measured 1067 ohms. The nominal correction produces 1070.133 ohms (about 18.0 C).
+A separate infrared measurement put CJC at 17.2 C. Its in-circuit resistance was
+approximately 1065 ohms, potentially affected by parallel paths. Why CJC does
+not show the same 100 ohm excess remains unresolved. No additional thermometer
+or cable offset is applied. Internal-calibration command issues remain separate.
+
+Validation not run: no builds, test suites, hardware regression, or rollback
+application were performed.

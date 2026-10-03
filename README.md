@@ -1,5 +1,19 @@
 # ZapEE
 
+Release 0.13.1 adds server echo and visible backspace/delete to the regular
+TCP console. Keep client local echo and local line editing disabled in both
+line mode and raw-key screens. No builds or tests run.
+
+
+Release 0.13.0 adds optional raw-key console screens to pico_network.
+See docs/CONSOLE_SCREENS.md. Building and testing remain with the user.
+
+
+Release 0.12.3 corrects PWM stop reporting: ztm_pwm_stop_all returns false
+when the module is unavailable or zero-duty writes fail. Successful writes do
+not verify physical fan standstill. POWER_SAFE faults still require explicit
+reinitialization; this change does not resolve the underlying read failure.
+
 **Zaptronics Embedded Electronics Library**
 
 Portable C drivers and module libraries for Zaptronics hardware.
@@ -250,3 +264,44 @@ module APIs are considered supportable.
 ## Licensing
 
 Licensed under the Apache License, Version 2.0. See `LICENSE`.
+
+
+## ZTPICO2 extraction (0.7.0 source)
+
+New components: `zap::pcal6416`, `zap::tla2518`, `zap::pico_ztpico2`,
+`zap::registry`, `zap::cli`, `zap::log`, `zap::pico_log`, `zap::pico_network`.
+See [ZTPICO2 and service ownership](docs/ZTPICO2.md). These source changes have
+not been built or tested. Use a local checkout until the new version is published.
+Hardware regression is skipped by user instruction.
+
+## ZTPICO2 stepper binding (0.11.0)
+
+The optional `zap::pico_ztpico2_ztm_stepper` component provides caller-owned
+framed SPI, operation locking and power callbacks. Applications retain module
+instances, connector assignments and event reporting. See
+[ZTPICO2_STEPPER_ADAPTER.md](docs/ZTPICO2_STEPPER_ADAPTER.md).
+Building and testing have not been run; validation remains with the user.
+
+## PWM power sequencing (0.12.0)
+
+ZTM_PWM uses PAC1 address 0x10 and requires a `power_safe_read` callback.
+The ZTPICO2 binding supplies this from TLA2518 GPIO0 (physical pin 15).
+Startup waits for POWER_SAFE; operational checks and polling detect loss and
+disable the module. Other platform bindings must supply the callback before
+initialization. See [PWM power sequencing](docs/PWM_POWER_SAFE.md).
+
+## PWM polarity and startup correction (0.12.1)
+
+Low-side channel duty now means load ON time: 0% is OFF and 100% is fully ON
+with the MCP1415 inverting gate drivers. SX1509 PWM setup keeps each pin
+released until its output latch and LED registers are configured. Initialization
+and channel stop use 0%. The POWER_SAFE sequencing from 0.12.0 remains in use.
+Building and hardware testing remain with the user.
+
+## External RTD resistance correction (0.12.2)
+
+ZTM_ADC subtracts nominal 100 ohm protection resistance from external RTD1-RTD8
+before reporting resistance and calculating temperature. CJC remains unchanged.
+Raw ADC codes remain available. See docs/ZTM_ADC.md for the measurement basis
+and limitations. Internal ADC calibration changes are outside this patch.
+Building and testing remain with the user.

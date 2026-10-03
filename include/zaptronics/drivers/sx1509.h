@@ -208,7 +208,9 @@ void sx1509_led_regs_for_pin(uint8_t pin,
                             uint8_t *reg_tfall);
 
 
-// LED-driver “PWM” helpers (active-low current sink; needs pull-up for logic-high)
+// LED-driver PWM helpers: duty is active-low sink time, not logic-high time.
+// 0% releases the open-drain pin; 100% sinks continuously. Needs an external pull-up.
+// Start holds the pin as an input until its latch and LED configuration are loaded.
 int sx1509_pwm_enable(sx1509_t *dev, uint8_t clkdiv_code);              // 1..7
 int sx1509_pwm_pin_start(sx1509_t *dev, uint8_t pin, uint8_t duty_pct); // 0..100
 int sx1509_pwm_pin_set_duty(sx1509_t *dev, uint8_t pin, uint8_t duty_pct);

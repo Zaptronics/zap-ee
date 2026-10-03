@@ -22,12 +22,16 @@ extern "C" {
 #define ZTM_PWM_EMC_COUNT 2u
 
 #define ZTM_PWM_SX1509_ADDR SX1509_I2C_ADDR_3
-#define ZTM_PWM_PAC1_ADDR 0x1fu
+#define ZTM_PWM_PAC1_ADDR 0x10u
 #define ZTM_PWM_PAC2_ADDR 0x11u
 #define ZTM_PWM_PAC3_ADDR 0x12u
 #define ZTM_PWM_EMC1_ADDR 0x2eu
 #define ZTM_PWM_EMC2_ADDR 0x2fu
 #define ZTM_PWM_SHUNT_UOHM 50000u
+#define ZTM_PWM_POWER_SAFE_TIMEOUT_MS 5000u
+#define ZTM_PWM_ERR_POWER_SAFE_TIMEOUT (-40)
+#define ZTM_PWM_ERR_POWER_SAFE_READ (-41)
+#define ZTM_PWM_ERR_POWER_SAFE_LOW (-42)
 
 #ifndef ZTM_PWM_FAN_DEFAULT_PUSH_PULL_MASK
 #define ZTM_PWM_FAN_DEFAULT_PUSH_PULL_MASK 0x3fu
@@ -73,9 +77,11 @@ typedef enum {
     ZTM_PWM_INIT_FAN_INTERRUPTS,
     ZTM_PWM_INIT_CLEAR_STATUS,
     ZTM_PWM_INIT_READY,
+    ZTM_PWM_INIT_POWER_SAFE,
 } ztm_pwm_init_stage_t;
 
 typedef struct {
+    int power_safe_rc; /* 0: high verified; -40 timeout, -41 read failure, -42 lost. */
     bool power_control_ok;
     bool power_was_enabled;
     bool power_temporarily_enabled;
@@ -99,6 +105,7 @@ typedef struct {
 } ztm_pwm_probe_result_t;
 
 typedef struct {
+    int power_safe_rc; /* 0: high verified; -40 timeout, -41 read failure, -42 lost. */
     bool power_control_ok;
     bool power_was_enabled;
     bool power_temporarily_enabled;
@@ -136,6 +143,7 @@ typedef enum {
     ZTM_PWM_EVENT_FAN_SPINUP_FAILURE,
     ZTM_PWM_EVENT_FAN_DRIVE_FAILURE,
     ZTM_PWM_EVENT_IRQ_UNRESOLVED,
+    ZTM_PWM_EVENT_POWER_SAFE_ERROR, /* detail is the positive magnitude of rc. */
 } ztm_pwm_event_type_t;
 
 typedef struct {
@@ -152,7 +160,7 @@ typedef void (*ztm_pwm_event_fn)(void *context, const ztm_pwm_event_t *event);
 
 /** Platform/application services required by one ZTM_PWM instance.
  *
- * i2c, time and power_set are required. power_get, irq_read and event are
+ * i2c, time, power_set and power_safe_read are required. power_get, irq_read and event are
  * optional. control_context is passed to power/IRQ callbacks; event_context is
  * passed independently to the structured event callback.
  */
@@ -165,6 +173,9 @@ typedef struct {
     ztm_pwm_irq_read_fn irq_read;
     void *event_context;
     ztm_pwm_event_fn event;
+    /* Active-high POWER_SAFE, using control_context; 0 return means valid read. */
+    ztm_pwm_power_get_fn power_safe_read;
+    uint32_t power_safe_timeout_ms; /* Zero selects the 5000 ms default. */
 } ztm_pwm_config_t;
 
 typedef struct {
@@ -177,6 +188,7 @@ typedef struct {
 
     ztm_pwm_config_t config;
     bool ready;
+    int power_safe_rc; /* Latched until an explicit startup/probe/scan. */
     ztm_pwm_init_stage_t last_init_stage;
     int last_init_rc;
 
@@ -201,6 +213,8 @@ int ztm_pwm_poll(ztm_pwm_t *device);
 /** Stop outputs, disable module power, and mark the instance not ready. */
 int ztm_pwm_deinit(ztm_pwm_t *device);
 bool ztm_pwm_ready(const ztm_pwm_t *device);
+/* Check readiness and live POWER_SAFE before direct diagnostic driver access. */
+bool ztm_pwm_operational(ztm_pwm_t *device);
 bool ztm_pwm_power_off(ztm_pwm_t *device);
 bool ztm_pwm_reinitialize(ztm_pwm_t *device);
 bool ztm_pwm_read_enable(const ztm_pwm_t *device, bool *enabled);
@@ -215,6 +229,7 @@ const char *ztm_pwm_current_source_name(ztm_pwm_current_source_t source);
 bool ztm_pwm_channel_set(ztm_pwm_t *device, uint8_t channel_1based, uint8_t duty_pct);
 bool ztm_pwm_channel_set_all(ztm_pwm_t *device, uint8_t duty_pct);
 bool ztm_pwm_channel_stop(ztm_pwm_t *device, uint8_t channel_1based);
+/* False if unavailable or any zero-duty write fails; does not confirm physical fan stop. */
 bool ztm_pwm_stop_all(ztm_pwm_t *device);
 uint8_t ztm_pwm_channel_get_duty(const ztm_pwm_t *device, uint8_t channel_1based);
 uint8_t ztm_pwm_channel_get_sx_pin(uint8_t channel_1based);

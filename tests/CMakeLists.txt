@@ -75,3 +75,13 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(${test_target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endforeach()
 endif()
+
+# New migration fixtures; provided for user-run host testing.
+foreach(component pcal6416 tla2518 registry)
+    add_executable(zap_${component}_test ${component}_test.c)
+    target_link_libraries(zap_${component}_test PRIVATE zap::${component})
+    add_test(NAME zap_${component}_test COMMAND zap_${component}_test)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(zap_${component}_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endforeach()

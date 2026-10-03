@@ -439,9 +439,9 @@ void sx1509_led_regs_for_pin(uint8_t pin,
 // -------------------- PWM (LED driver engine) --------------------
 static uint8_t sx1509_duty_pct_to_255_(uint8_t duty_pct) {
     if (duty_pct > 100) duty_pct = 100;
-    // round to nearest
+    // Active-low sink duty: 0% releases the pin, 100% sinks continuously.
     uint16_t v = (uint16_t)duty_pct * 255u;
-    return (uint8_t)(255 - ((v + 50u) / 100u));
+    return (uint8_t)((v + 50u) / 100u);
 }
 
 int sx1509_pwm_enable(sx1509_t *dev, uint8_t clkdiv_code) {
@@ -470,31 +470,22 @@ int sx1509_pwm_pin_start(sx1509_t *dev, uint8_t pin, uint8_t duty_pct) {
     if (!dev || !dev->present) return SX1509_ERR_NOT_PRESENT;
     if (pin >= 16) return SX1509_ERR_BAD_ARG;
 
-    // Matches the working IO9 function:
-    // - open drain + input buffer disabled
-    // - no internal pulls
-    // - oscillator + ClkX enabled
-    // - LED driver enable set
-    // - TOn=0, Off=0, IOn=duty
-    // - RegData LOW to start
-
-    int rc = sx1509_pwm_enable(dev, 7); // you said you’re using 7; change if desired
+    // Release the pad first, including when restarting a previously active pin.
+    // Keep it as an input until the output latch and LED registers are safe.
+    int rc = sx1509_pin_set_input(dev, pin);
+    if (rc != SX1509_OK) return rc;
+    rc = sx1509_digital_write(dev, pin, true);
+    if (rc != SX1509_OK) return rc;
+    rc = sx1509_update_bit16(dev, SX1509_REG_LED_DRIVER_ENABLE_B, pin, false);
     if (rc != SX1509_OK) return rc;
 
     rc = sx1509_pin_configure(dev, pin,
-                              SX1509_PIN_OUTPUT |
+                              SX1509_PIN_INPUT |
                               SX1509_PIN_OPENDRAIN |
                               SX1509_PIN_INPUT_DISABLE);
     if (rc != SX1509_OK) return rc;
 
-    // ensure internal pulls are OFF so your external pull-up wins
-    rc = sx1509_update_bit16(dev, SX1509_REG_PULL_UP_B, pin, false);
-    if (rc != SX1509_OK) return rc;
-    rc = sx1509_update_bit16(dev, SX1509_REG_PULL_DOWN_B, pin, false);
-    if (rc != SX1509_OK) return rc;
-
-    // enable LED driver on this pin
-    rc = sx1509_update_bit16(dev, SX1509_REG_LED_DRIVER_ENABLE_B, pin, true);
+    rc = sx1509_pwm_enable(dev, 7);
     if (rc != SX1509_OK) return rc;
 
     // program LED driver regs for this pin
@@ -510,7 +501,13 @@ int sx1509_pwm_pin_start(sx1509_t *dev, uint8_t pin, uint8_t duty_pct) {
     rc = sx1509_reg_write8(dev, reg_off, 0x00);      // Off = 0 (static)
     if (rc != SX1509_OK) return rc;
 
-    // start LED driver: RegData bit LOW
+    // Arm only after IOn/Off are loaded. RegData HIGH selects zero off intensity.
+    rc = sx1509_update_bit16(dev, SX1509_REG_LED_DRIVER_ENABLE_B, pin, true);
+    if (rc != SX1509_OK) return rc;
+    rc = sx1509_pin_set_output(dev, pin);
+    if (rc != SX1509_OK) return rc;
+
+    // Start at the requested sink duty; IOn=0 keeps a zero-duty channel released.
     return sx1509_digital_write(dev, pin, false);
 }
 
