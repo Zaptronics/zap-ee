@@ -244,6 +244,8 @@ bool ztm_pwm_channel_get_current_route(const ztm_pwm_t *device, uint8_t channel_
 bool ztm_pwm_fan_set(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct);
 bool ztm_pwm_fan_set_raw(ztm_pwm_t *device, uint8_t fan_1based, uint8_t raw);
 bool ztm_pwm_fan_set_target_rpm(ztm_pwm_t *device, uint8_t fan_1based, uint32_t rpm);
+/* Lowest duty the closed-loop RPM controller may drive (chip default 40%). */
+bool ztm_pwm_fan_set_min_drive(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct);
 bool ztm_pwm_fan_set_open_loop(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct);
 bool ztm_pwm_fan_set_all(ztm_pwm_t *device, uint8_t duty_pct);
 bool ztm_pwm_fan_set_output_mode(ztm_pwm_t *device, uint8_t fan_1based, ztm_pwm_fan_output_mode_t mode);

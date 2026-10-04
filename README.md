@@ -1,5 +1,10 @@
 # ZapEE
 
+Release 0.13.2 adds a per-fan closed-loop minimum drive setting for EMC2303 /
+ZTM_PWM fans (chip default 40%), so slow RPM targets can lock. Defaults are
+unchanged. No builds or tests run.
+
+
 Release 0.13.1 adds server echo and visible backspace/delete to the regular
 TCP console. Keep client local echo and local line editing disabled in both
 line mode and raw-key screens. No builds or tests run.

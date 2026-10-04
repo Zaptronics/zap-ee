@@ -371,6 +371,12 @@ int emc2303_fan_set_target_rpm(emc2303_t *dev, uint8_t fan, uint32_t rpm) {
     return set_last(dev, rc);
 }
 
+int emc2303_fan_set_min_drive(emc2303_t *dev, uint8_t fan, uint8_t setting) {
+    if (!dev || !fan_valid(fan)) return set_last(dev, EMC2303_E_BAD_ARG);
+    int rc = emc2303_reg_write8(dev, EMC2303_REG_MIN_DRIVE(fan), setting);
+    return set_last(dev, rc);
+}
+
 /* ---------- public: config helpers ---------- */
 
 int emc2303_fan_set_range(emc2303_t *dev, uint8_t fan, emc2303_range_t range) {

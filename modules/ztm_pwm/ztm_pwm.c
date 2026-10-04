@@ -889,6 +889,18 @@ bool ztm_pwm_fan_set_target_rpm(ztm_pwm_t *device, uint8_t fan_1based, uint32_t 
     return true;
 }
 
+bool ztm_pwm_fan_set_min_drive(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct)
+{
+    if (!ztm_pwm_operational(device) || !valid_fan(fan_1based) || duty_pct > 100u) {
+        return false;
+    }
+    fan_route_t route = g_fan_route[fan_1based - 1u];
+    uint8_t raw = (uint8_t)(((uint32_t)duty_pct * 255u + 50u) / 100u);
+    return emc2303_fan_set_min_drive(&device->fan_controller[route.emc_index],
+                                     route.emc_fan,
+                                     raw) == EMC2303_OK;
+}
+
 bool ztm_pwm_fan_set(ztm_pwm_t *device, uint8_t fan_1based, uint8_t duty_pct)
 {
     if (!ztm_pwm_operational(device) || !valid_fan(fan_1based) || duty_pct > 100u) {

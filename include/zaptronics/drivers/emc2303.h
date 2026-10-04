@@ -218,6 +218,9 @@ int emc2303_fan_get_rpm(emc2303_t *dev, uint8_t fan, uint32_t *rpm);
 /* Closed-loop RPM target (ENAG=1) */
 int emc2303_fan_enable_closed_loop(emc2303_t *dev, uint8_t fan, bool enable);
 int emc2303_fan_set_target_rpm(emc2303_t *dev, uint8_t fan, uint32_t rpm);
+/* Lowest drive the closed loop may use (0..255). The chip default 0x66 (40%)
+ * prevents slow targets that need less drive from locking. */
+int emc2303_fan_set_min_drive(emc2303_t *dev, uint8_t fan, uint8_t setting);
 
 /* Common config helpers */
 int emc2303_fan_set_range(emc2303_t *dev, uint8_t fan, emc2303_range_t range);

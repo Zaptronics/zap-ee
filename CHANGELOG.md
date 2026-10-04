@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.2
+
+- Add emc2303_fan_set_min_drive and ztm_pwm_fan_set_min_drive to set the closed-loop minimum drive per fan.
+- The EMC2303 default minimum drive is 40% (0x66), which stops slow RPM targets locking: a fan that needs about 20% duty spins up past its target instead.
+- Defaults are unchanged; applications opt in. Update version fixture without running it.
+- Validation not run: no builds, tests or rollback application.
+
+
 ## 0.13.1
 
 - Echo accepted line-mode characters, erase on backspace/delete, and emit a newline before executing a line.
